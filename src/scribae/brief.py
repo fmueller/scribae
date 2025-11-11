@@ -3,56 +3,100 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import re
 from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
 import frontmatter
-import yaml
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 from pydantic_ai import Agent
 from pydantic_ai.models.openai import OpenAIChatModel
 from pydantic_ai.providers.ollama import OllamaProvider
 from pydantic_ai.providers.openai import OpenAIProvider
+from pydantic_ai.settings import ModelSettings
+
+from .project import ProjectConfig
+from .prompts import SYSTEM_PROMPT, PromptBundle, build_prompt_bundle
 
 DEFAULT_MODEL_NAME = "llama3.1:8b-instruct"
 DEFAULT_OPENAI_BASE_URL = "http://localhost:11434/v1"
 DEFAULT_OPENAI_API_KEY = "ollama"
 LLM_TIMEOUT_SECONDS = 300.0
 
-SYSTEM_PROMPT = """You are Scribae, a writing operations assistant.
-Create a concise creative brief for writers, returning STRICT JSON that matches this schema:
-{
-  "title": "short string headline summarizing the work to do",
-  "summary": "3-5 sentences that capture the note's intent and narrative voice",
-  "recommended_tags": ["kebab-case or lowercase tags that would label the note"],
-  "next_actions": ["short imperative steps a writer should take next"]
-}
-Rules:
-- ONLY emit valid JSON. No markdown fences, no commentary.
-- Keep tags distinct, 1-3 words each.
-- If you lack information, still return JSON and explain the gap inside the summary or action.
-- Stay grounded in the provided note and optional project context.
-"""
-
 
 class BriefingError(Exception):
     """Raised when a brief cannot be generated."""
 
+    exit_code = 1
 
-class BriefResult(BaseModel):
-    """Structured output for the `scribae brief` command."""
+    def __init__(self, message: str, *, exit_code: int | None = None) -> None:
+        super().__init__(message)
+        if exit_code is not None:
+            self.exit_code = exit_code
+
+
+class BriefValidationError(BriefingError):
+    exit_code = 2
+
+
+class BriefFileError(BriefingError):
+    exit_code = 3
+
+
+class BriefLLMError(BriefingError):
+    exit_code = 4
+
+
+class SeoBrief(BaseModel):
+    """Structured SEO briefing returned by the LLM."""
 
     model_config = ConfigDict(extra="forbid")
 
-    title: str = Field(..., min_length=3, description="Suggested working title or headline.")
-    summary: str = Field(..., min_length=10, description="Concise prose summary for the writer.")
-    recommended_tags: list[str] = Field(default_factory=list, description="Suggested tags for the note.")
-    next_actions: list[str] = Field(
-        default_factory=list,
-        description="Concrete follow-up actions or writing tasks.",
+    primary_keyword: str = Field(..., min_length=2)
+    secondary_keywords: list[str] = Field(default_factory=list, min_length=1)
+    search_intent: str = Field(..., pattern="^(informational|navigational|transactional|mixed)$")
+    audience: str = Field(..., min_length=3)
+    angle: str = Field(..., min_length=3)
+    title: str = Field(..., min_length=5, max_length=60)
+    h1: str = Field(..., min_length=5)
+    outline: list[str] = Field(default_factory=list, min_length=6, max_length=10)
+    faq: list[str] = Field(default_factory=list, min_length=3)
+    meta_description: str = Field(..., min_length=20)
+
+    @field_validator(
+        "primary_keyword",
+        "audience",
+        "angle",
+        "title",
+        "h1",
+        "meta_description",
+        mode="before",
     )
+    @classmethod
+    def _strip_strings(cls, value: str) -> str:
+        if not isinstance(value, str):
+            raise TypeError("value must be a string")
+        return value.strip()
+
+    @field_validator("secondary_keywords", "outline", "faq", mode="before")
+    @classmethod
+    def _coerce_list(cls, value: Any) -> list[str]:
+        if isinstance(value, str):
+            value = [value]
+        if not isinstance(value, list):
+            raise TypeError("value must be a list")
+        cleaned = [str(item).strip() for item in value if str(item).strip()]
+        return cleaned
+
+    @field_validator("secondary_keywords")
+    @classmethod
+    def _secondary_keywords_non_empty(cls, value: list[str]) -> list[str]:
+        if not value:
+            raise ValueError("secondary_keywords must include at least one entry")
+        return value
 
 
 @dataclass(frozen=True)
@@ -65,6 +109,15 @@ class NoteDetails:
     metadata: dict[str, Any]
     truncated: bool
     max_chars: int
+
+
+@dataclass(frozen=True)
+class BriefingContext:
+    """Artifacts required to generate a brief."""
+
+    note: NoteDetails
+    project: ProjectConfig
+    prompts: PromptBundle
 
 
 @dataclass(frozen=True)
@@ -112,55 +165,84 @@ class OpenAISettings:
 Reporter = Callable[[str], None] | None
 
 
-def generate_brief(
+def prepare_context(
     note_path: Path,
     *,
-    project: str | None,
-    model_name: str,
+    project: ProjectConfig,
     max_chars: int,
     reporter: Reporter = None,
-    settings: OpenAISettings | None = None,
-    agent: Any | None = None,
-    timeout_seconds: float = LLM_TIMEOUT_SECONDS,
-) -> BriefResult:
-    """Load the note, build the prompt, and run the LLM call."""
+) -> BriefingContext:
+    """Load note data and build the prompt bundle."""
     if max_chars <= 0:
-        raise BriefingError("--max-chars must be greater than zero.")
+        raise BriefValidationError("--max-chars must be greater than zero.")
 
     note = _load_note(note_path, max_chars=max_chars)
     _report(reporter, f"Loaded note '{note.title}' from {note.path}")
 
-    prompt = _build_prompt(note, project_text=project)
-    _report(reporter, "Prepared prompt for Pydantic AI agent.")
+    prompts = build_prompt_bundle(project=project, note_title=note.title, note_content=note.body)
+    _report(reporter, "Prepared structured prompt.")
 
+    return BriefingContext(note=note, project=project, prompts=prompts)
+
+
+def generate_brief(
+    context: BriefingContext,
+    *,
+    model_name: str,
+    temperature: float,
+    reporter: Reporter = None,
+    settings: OpenAISettings | None = None,
+    agent: Any | None = None,
+    timeout_seconds: float = LLM_TIMEOUT_SECONDS,
+) -> SeoBrief:
+    """Run the LLM call and validate the returned JSON."""
     resolved_settings = settings or OpenAISettings.from_env()
-    llm_agent = agent or _create_agent(model_name, resolved_settings)
+    llm_agent = agent or _create_agent(model_name, resolved_settings, temperature=temperature)
+
     _report(
         reporter,
         f"Calling model '{model_name}' via {resolved_settings.base_url}",
     )
 
     try:
-        run_result = _invoke_agent(llm_agent, prompt, timeout_seconds=timeout_seconds)
+        raw_output = _invoke_agent(llm_agent, context.prompts.user_prompt, timeout_seconds=timeout_seconds)
     except TimeoutError as exc:
-        raise BriefingError(f"LLM request timed out after {int(timeout_seconds)} seconds.") from exc
+        raise BriefLLMError(f"LLM request timed out after {int(timeout_seconds)} seconds.") from exc
     except KeyboardInterrupt:
         raise
     except Exception as exc:  # pragma: no cover - surfaced to CLI
-        raise BriefingError(f"LLM request failed: {exc}") from exc
+        raise BriefLLMError(f"LLM request failed: {exc}") from exc
 
-    _report(reporter, "LLM call complete.")
+    _report(reporter, "LLM call complete, validating JSON payload.")
 
-    output = getattr(run_result, "output", None)
-    if isinstance(output, BriefResult):
-        return output
-
-    raise BriefingError("LLM returned malformed output; unable to build brief.")
+    return _parse_brief_output(raw_output)
 
 
-def render_json(result: BriefResult) -> str:
+def render_json(result: SeoBrief) -> str:
     """Return the brief as a JSON string."""
     return json.dumps(result.model_dump(), indent=2, ensure_ascii=False)
+
+
+def save_prompt_artifacts(
+    context: BriefingContext,
+    *,
+    destination: Path,
+    project_label: str,
+    timestamp: str | None = None,
+) -> tuple[Path, Path]:
+    """Persist the system prompt and truncated note for debugging."""
+    destination.mkdir(parents=True, exist_ok=True)
+    stamp = timestamp or _current_timestamp()
+    slug = _slugify(project_label or "default") or "default"
+
+    prompt_path = destination / f"{stamp}-{slug}-note.prompt.txt"
+    note_path = destination / f"{stamp}-note.txt"
+
+    prompt_payload = f"SYSTEM PROMPT:\n{context.prompts.system_prompt}\n\nUSER PROMPT:\n{context.prompts.user_prompt}\n"
+    prompt_path.write_text(prompt_payload, encoding="utf-8")
+    note_path.write_text(context.note.body, encoding="utf-8")
+
+    return prompt_path, note_path
 
 
 def _load_note(note_path: Path, *, max_chars: int) -> NoteDetails:
@@ -168,11 +250,11 @@ def _load_note(note_path: Path, *, max_chars: int) -> NoteDetails:
     try:
         post = frontmatter.load(note_path)
     except FileNotFoundError as exc:
-        raise BriefingError(f"Note file not found: {note_path}") from exc
+        raise BriefFileError(f"Note file not found: {note_path}") from exc
     except OSError as exc:
-        raise BriefingError(f"Unable to read note: {exc}") from exc
+        raise BriefFileError(f"Unable to read note: {exc}") from exc
     except Exception as exc:
-        raise BriefingError(f"Unable to parse note: {exc}") from exc
+        raise BriefFileError(f"Unable to parse note: {exc}") from exc
 
     metadata = dict(post.metadata or {})
     body = post.content.strip()
@@ -197,54 +279,99 @@ def _truncate(value: str, max_chars: int) -> tuple[str, bool]:
     """Truncate the note body to the configured number of characters."""
     if len(value) <= max_chars:
         return value, False
-    return value[:max_chars].rstrip() + " …", True
+    return value[: max_chars - 1].rstrip() + " …", True
 
 
-def _build_prompt(note: NoteDetails, *, project_text: str | None) -> str:
-    """Compose the textual prompt for the agent."""
-    sections: list[str] = [
-        f"NOTE PATH: {note.path}",
-        f"NOTE TITLE: {note.title}",
-    ]
-
-    if project_text:
-        sections.append("PROJECT CONTEXT:\n" + project_text.strip())
-
-    if note.metadata:
-        yaml_blob = yaml.safe_dump(note.metadata, default_flow_style=False, sort_keys=True).strip()
-        sections.append("NOTE METADATA (YAML):\n" + yaml_blob)
-
-    sections.append("NOTE BODY:\n" + note.body.strip())
-
-    if note.truncated:
-        sections.append(f"NOTE TRUNCATED: only first {note.max_chars} characters are provided.")
-
-    sections.append(
-        "Return JSON that strictly matches the schema described in the system prompt. "
-        "Do not wrap the JSON in markdown fences."
-    )
-
-    return "\n\n".join(sections).strip()
-
-
-def _create_agent(model_name: str, settings: OpenAISettings) -> Any:
+def _create_agent(model_name: str, settings: OpenAISettings, *, temperature: float) -> Agent:
     """Instantiate the Pydantic AI agent for generating briefs."""
     provider = settings.make_provider()
     model = OpenAIChatModel(model_name, provider=provider)
+    model_settings = ModelSettings(temperature=temperature)
     return Agent(
         model=model,
-        output_type=BriefResult,
+        output_type=str,
         instructions=SYSTEM_PROMPT,
+        model_settings=model_settings,
     )
 
 
-def _invoke_agent(agent: Agent, prompt: str, *, timeout_seconds: float) -> Any:
+def _invoke_agent(agent: Agent, prompt: str, *, timeout_seconds: float) -> str:
     """Run the agent with a timeout using asyncio."""
 
-    async def _call() -> Any:
-        return await agent.run(prompt)
+    async def _call() -> str:
+        run = await agent.run(prompt)
+        output = getattr(run, "output", "")
+        if not isinstance(output, str):
+            raise TypeError("LLM output is not a string")
+        return output
 
     return asyncio.run(asyncio.wait_for(_call(), timeout_seconds))
+
+
+def _parse_brief_output(payload: str) -> SeoBrief:
+    """Parse raw model output into a SeoBrief, extracting JSON when necessary."""
+    try:
+        return SeoBrief.model_validate_json(payload)
+    except ValidationError:
+        json_blob = _extract_first_json_block(payload)
+        if json_blob:
+            try:
+                return SeoBrief.model_validate_json(json_blob)
+            except ValidationError as exc:
+                raise BriefValidationError(_format_validation_error(exc)) from exc
+        raise BriefValidationError("LLM response did not contain valid JSON.") from None
+
+
+def _extract_first_json_block(text: str) -> str | None:
+    """Return the first balanced JSON object found in the text."""
+    start = text.find("{")
+    if start == -1:
+        return None
+
+    depth = 0
+    in_string = False
+    escape = False
+
+    for idx in range(start, len(text)):
+        char = text[idx]
+        if in_string:
+            if escape:
+                escape = False
+            elif char == "\\":
+                escape = True
+            elif char == '"':
+                in_string = False
+            continue
+
+        if char == '"':
+            in_string = True
+            continue
+        if char == "{":
+            depth += 1
+        elif char == "}":
+            depth -= 1
+            if depth == 0:
+                return text[start : idx + 1]
+
+    return None
+
+
+def _format_validation_error(exc: ValidationError) -> str:
+    messages: list[str] = []
+    for error in exc.errors():
+        location = ".".join(str(loc) for loc in error.get("loc", []) if loc != "__root__") or "__root__"
+        msg = error.get("msg", "validation error")
+        messages.append(f"{location}: {msg}")
+    return "; ".join(messages)
+
+
+def _current_timestamp() -> str:
+    return datetime.now().strftime("%Y%m%d-%H%M%S")
+
+
+def _slugify(value: str) -> str:
+    lowered = value.lower()
+    return re.sub(r"[^a-z0-9]+", "-", lowered).strip("-")
 
 
 def _report(reporter: Reporter, message: str) -> None:

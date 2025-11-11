@@ -6,6 +6,7 @@ import typer
 
 from . import brief
 from .brief import DEFAULT_MODEL_NAME, BriefingError
+from .project import default_project, load_project
 
 app = typer.Typer(help="Scribae CLI — generate writing briefs from local notes.")
 
@@ -15,8 +16,16 @@ def app_callback() -> None:
     """Root Scribae CLI callback."""
 
 
-def _validate_output_options(out: Path | None, json_output: bool) -> None:
+def _validate_output_options(out: Path | None, json_output: bool, *, dry_run: bool) -> None:
     """Ensure mutually exclusive/required output arguments."""
+    if dry_run:
+        if out or json_output:
+            raise typer.BadParameter(
+                "--dry-run cannot be combined with --out/--json output options.",
+                param_hint="--dry-run",
+            )
+        return
+
     if out is None and not json_output:
         raise typer.BadParameter(
             "Choose an output destination: use --out FILE or --json.",
@@ -46,7 +55,7 @@ def brief_command(
         None,
         "--project",
         "-p",
-        help="Optional project context string that will be injected into the prompt.",
+        help="Project name used to load projects/<name>.yaml for prompt context.",
     ),
     model: str = typer.Option(  # noqa: B008
         DEFAULT_MODEL_NAME,
@@ -72,6 +81,27 @@ def brief_command(
         min=1,
         help="Maximum number of note-body characters to send to the model.",
     ),
+    temperature: float = typer.Option(  # noqa: B008
+        0.3,
+        "--temperature",
+        min=0.0,
+        max=2.0,
+        help="Temperature passed to the underlying model.",
+    ),
+    dry_run: bool = typer.Option(  # noqa: B008
+        False,
+        "--dry-run",
+        help="Print the generated prompt and skip the model call.",
+    ),
+    save_prompt: Path | None = typer.Option(  # noqa: B008
+        None,
+        "--save-prompt",
+        file_okay=False,
+        dir_okay=True,
+        exists=False,
+        resolve_path=True,
+        help="Directory for saving prompt + note snapshots.",
+    ),
     verbose: bool = typer.Option(  # noqa: B008
         False,
         "--verbose",
@@ -80,16 +110,51 @@ def brief_command(
     ),
 ) -> None:
     """CLI handler for `scribae brief`."""
-    _validate_output_options(out, json_output)
+    _validate_output_options(out, json_output, dry_run=dry_run)
 
     reporter = (lambda msg: typer.secho(msg, err=True)) if verbose else None
+    project_config = default_project()
+    project_label = "default"
+
+    if project:
+        try:
+            project_config = load_project(project)
+            project_label = project
+        except (FileNotFoundError, ValueError, OSError) as exc:
+            typer.secho(str(exc), err=True, fg=typer.colors.RED)
+            raise typer.Exit(5) from exc
+
+    try:
+        context = brief.prepare_context(
+            note_path=note,
+            project=project_config,
+            max_chars=max_chars,
+            reporter=reporter,
+        )
+    except BriefingError as exc:
+        typer.secho(str(exc), err=True, fg=typer.colors.RED)
+        raise typer.Exit(exc.exit_code) from exc
+
+    if save_prompt is not None:
+        try:
+            brief.save_prompt_artifacts(
+                context,
+                destination=save_prompt,
+                project_label=project_label,
+            )
+        except OSError as exc:
+            typer.secho(f"Unable to save prompt artifacts: {exc}", err=True, fg=typer.colors.RED)
+            raise typer.Exit(3) from exc
+
+    if dry_run:
+        typer.echo(context.prompts.user_prompt)
+        return
 
     try:
         result = brief.generate_brief(
-            note_path=note,
-            project=project,
+            context,
             model_name=model,
-            max_chars=max_chars,
+            temperature=temperature,
             reporter=reporter,
         )
     except KeyboardInterrupt:
@@ -97,7 +162,7 @@ def brief_command(
         raise typer.Exit(130) from None
     except BriefingError as exc:
         typer.secho(str(exc), err=True, fg=typer.colors.RED)
-        raise typer.Exit(1) from exc
+        raise typer.Exit(exc.exit_code) from exc
 
     json_payload = brief.render_json(result)
 
