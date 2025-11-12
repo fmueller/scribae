@@ -15,7 +15,7 @@ from scribae.prompts import PromptBundle
 def _base_payload(fake: Faker) -> dict[str, Any]:
     title = fake.sentence(nb_words=4)
     outline = [fake.sentence() for _ in range(6)]
-    faq = [fake.sentence().rstrip(".") + "?" for _ in range(3)]
+    faq = [{"question": fake.sentence().rstrip(".") + "?", "answer": fake.paragraph()} for _ in range(3)]
     return {
         "primary_keyword": fake.word(),
         "secondary_keywords": [fake.word(), fake.word()],
@@ -48,6 +48,34 @@ def test_meta_description_length_enforced(fake: Faker) -> None:
         SeoBrief(**payload)
 
     assert "meta_description" in str(excinfo.value)
+
+
+def test_faq_requires_bounded_entries(fake: Faker) -> None:
+    payload = _base_payload(fake)
+    payload["faq"] = payload["faq"][:1]
+
+    with pytest.raises(ValidationError) as excinfo:
+        SeoBrief(**payload)
+
+    assert "faq" in str(excinfo.value)
+
+    payload = _base_payload(fake)
+    payload["faq"].extend({"question": fake.sentence().rstrip(".") + "?", "answer": fake.paragraph()} for _ in range(3))
+
+    with pytest.raises(ValidationError) as excinfo:
+        SeoBrief(**payload)
+
+    assert "faq" in str(excinfo.value)
+
+
+def test_faq_answers_require_substance(fake: Faker) -> None:
+    payload = _base_payload(fake)
+    payload["faq"][0]["answer"] = "too short"
+
+    with pytest.raises(ValidationError) as excinfo:
+        SeoBrief(**payload)
+
+    assert "faq" in str(excinfo.value)
 
 
 def _briefing_context(fake: Faker) -> BriefingContext:

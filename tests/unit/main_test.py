@@ -5,7 +5,7 @@ import pytest
 from faker import Faker
 from typer.testing import CliRunner
 
-from scribae.brief import SeoBrief
+from scribae.brief import FaqItem, SeoBrief
 from scribae.main import app
 
 runner = CliRunner()
@@ -34,7 +34,7 @@ def note_body(note_file: Path) -> str:
 def _fake_brief(fake: Faker) -> SeoBrief:
     title = fake.sentence(nb_words=4)
     outline = [fake.sentence() for _ in range(6)]
-    faq = [fake.sentence().rstrip(".") + "?" for _ in range(3)]
+    faq = [FaqItem(question=fake.sentence().rstrip(".") + "?", answer=fake.paragraph()) for _ in range(3)]
     return SeoBrief(
         primary_keyword=fake.word(),
         secondary_keywords=[fake.word(), fake.word()],
@@ -104,6 +104,10 @@ def test_brief_writes_to_file(monkeypatch: pytest.MonkeyPatch, note_file: Path, 
     saved = json.loads(output_path.read_text(encoding="utf-8"))
     assert isinstance(saved["outline"], list) and len(saved["outline"]) == 6
     assert all(isinstance(item, str) and item for item in saved["outline"])
+    assert isinstance(saved["faq"], list) and 2 <= len(saved["faq"]) <= 5
+    assert all(
+        isinstance(entry.get("question"), str) and isinstance(entry.get("answer"), str) for entry in saved["faq"]
+    )
     assert "Wrote brief" in result.stdout
 
 

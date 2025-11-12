@@ -11,24 +11,47 @@ SYSTEM_PROMPT = textwrap.dedent(
     Output must be pure JSON, strictly matching the SeoBrief schema.
     No explanations, no markdown, no bullet points outside JSON.
     Populate all fields.
-    If the note is conceptual, infer a coherent outline (6–10 sections)
-    and at least 3 FAQs. Match the tone and audience provided.
+    Infer a coherent outline (6–10 sections) and generate 2–5 FAQ entries (target 3).
+
+    FAQ RULES:
+    - Each FAQ entry must be an object with both "question" and "answer" strings.
+    - Do not emit bare strings, nulls, or partial objects in the FAQ array.
+    - If you cannot satisfy the FAQ schema, regenerate mentally before responding.
+
+    Match the tone and audience provided.
     """
 ).strip()
 
 SCHEMA_EXAMPLE = textwrap.dedent(
     """\
     {
-     "primary_keyword": "string",
-     "secondary_keywords": ["string", "..."],
-     "search_intent": "informational|navigational|transactional|mixed",
-     "audience": "string",
-     "angle": "string",
-     "title": "string (<= 60 chars)",
-     "h1": "string",
-     "outline": ["Introduction","Main Part","Summary"],
-     "faq": ["Question 1?","Question 2?"],
-     "meta_description": "string (>= 20 chars)"
+      "primary_keyword": "string",
+      "secondary_keywords": ["string", "..."],
+      "search_intent": "informational|navigational|transactional|mixed",
+      "audience": "string",
+      "angle": "string",
+      "title": "string (<= 60 chars)",
+      "h1": "string",
+      "outline": [
+        "Introduction",
+        "Main Part",
+        "Summary"
+      ],
+      "faq": [
+        {
+          "question": "Question 1?",
+          "answer": "Answer for question 1."
+        },
+        {
+          "question": "Question 2?",
+          "answer": "Answer for question 2."
+        },
+        {
+          "question": "Question 3?",
+          "answer": "Answer for question 3."
+        }
+      ],
+      "meta_description": "string (>= 20 chars)"
     }
     """
 ).strip()
@@ -65,6 +88,12 @@ def build_user_prompt(*, project: ProjectConfig, note_title: str, note_content: 
         Create an SEO brief for an article derived strictly from the note below.
         Return JSON matching the SeoBrief schema exactly.
         Expand the outline to cover 6–10 sections.
+        Provide 2–5 FAQ entries, each containing a question and answer (aim for 3).
+
+        [FAQ RULES]
+        - Every FAQ item must be an object with "question" and "answer" strings.
+        - Keep answers substantive (1–3 sentences) and never leave them blank or null.
+        - If the FAQ array would break these rules, fix it before responding.
 
         [NOTE TITLE]
         {note_title}
@@ -74,6 +103,8 @@ def build_user_prompt(*, project: ProjectConfig, note_title: str, note_content: 
 
         [SCHEMA EXAMPLE]
         {schema_example}
+
+        Re-check: JSON only. FAQ array contains 2–5 question/answer objects, no exceptions.
         """
     ).strip()
 

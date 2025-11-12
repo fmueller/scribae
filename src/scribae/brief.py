@@ -49,6 +49,22 @@ class BriefLLMError(BriefingError):
     exit_code = 4
 
 
+class FaqItem(BaseModel):
+    """Structured FAQ entry containing a question and answer."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    question: str = Field(..., min_length=5)
+    answer: str = Field(..., min_length=10)
+
+    @field_validator("question", "answer", mode="before")
+    @classmethod
+    def _strip_text(cls, value: str) -> str:
+        if not isinstance(value, str):
+            raise TypeError("value must be a string")
+        return value.strip()
+
+
 class SeoBrief(BaseModel):
     """Structured SEO briefing returned by the LLM."""
 
@@ -62,7 +78,7 @@ class SeoBrief(BaseModel):
     title: str = Field(..., min_length=5, max_length=60)
     h1: str = Field(..., min_length=5)
     outline: list[str] = Field(default_factory=list, min_length=6, max_length=10)
-    faq: list[str] = Field(default_factory=list, min_length=3)
+    faq: list[FaqItem] = Field(default_factory=list, min_length=2, max_length=5)
     meta_description: str = Field(..., min_length=20)
 
     @field_validator(
@@ -80,7 +96,7 @@ class SeoBrief(BaseModel):
             raise TypeError("value must be a string")
         return value.strip()
 
-    @field_validator("secondary_keywords", "outline", "faq", mode="before")
+    @field_validator("secondary_keywords", "outline", mode="before")
     @classmethod
     def _coerce_list(cls, value: Any) -> list[str]:
         if isinstance(value, str):
@@ -95,6 +111,13 @@ class SeoBrief(BaseModel):
     def _secondary_keywords_non_empty(cls, value: list[str]) -> list[str]:
         if not value:
             raise ValueError("secondary_keywords must include at least one entry")
+        return value
+
+    @field_validator("faq")
+    @classmethod
+    def _faq_bounds(cls, value: list[FaqItem]) -> list[FaqItem]:
+        if not 2 <= len(value) <= 5:
+            raise ValueError("faq must include between 2 and 5 entries")
         return value
 
 
