@@ -1,10 +1,15 @@
+import os
+from pathlib import Path
 from typing import Any
 
 import pytest
 from faker import Faker
 from pydantic import ValidationError
+from pydantic_ai import UnexpectedModelBehavior
 
-from scribae.brief import SeoBrief
+from scribae.brief import BriefingContext, BriefValidationError, NoteDetails, OpenAISettings, SeoBrief, generate_brief
+from scribae.project import default_project
+from scribae.prompts import PromptBundle
 
 
 def _base_payload(fake: Faker) -> dict[str, Any]:
@@ -43,3 +48,80 @@ def test_meta_description_length_enforced(fake: Faker) -> None:
         SeoBrief(**payload)
 
     assert "meta_description" in str(excinfo.value)
+
+
+def _briefing_context(fake: Faker) -> BriefingContext:
+    note = NoteDetails(
+        path=Path("note.md"),
+        title=fake.sentence(nb_words=3),
+        body=fake.paragraph(),
+        metadata={},
+        truncated=False,
+        max_chars=1000,
+    )
+    prompts = PromptBundle(system_prompt="system", user_prompt="prompt")
+    return BriefingContext(note=note, project=default_project(), prompts=prompts)
+
+
+def test_generate_brief_returns_structured_result(monkeypatch: pytest.MonkeyPatch, fake: Faker) -> None:
+    context = _briefing_context(fake)
+    brief_obj = SeoBrief(**_base_payload(fake))
+    monkeypatch.setattr("scribae.brief._invoke_agent", lambda *_, **__: brief_obj)
+    settings = OpenAISettings(provider="openai", base_url="http://example", api_key="secret")
+
+    result = generate_brief(
+        context,
+        model_name="gpt-4o-mini",
+        temperature=0.2,
+        settings=settings,
+    )
+
+    assert result is brief_obj
+
+
+def test_generate_brief_raises_validation_error_when_retries_exhausted(
+    monkeypatch: pytest.MonkeyPatch,
+    fake: Faker,
+) -> None:
+    context = _briefing_context(fake)
+    settings = OpenAISettings(provider="openai", base_url="http://example", api_key="secret")
+
+    def _boom(*_: object, **__: object) -> None:
+        raise UnexpectedModelBehavior("Tool 'final_result' exceeded max retries count of 2")
+
+    monkeypatch.setattr("scribae.brief._invoke_agent", _boom)
+
+    with pytest.raises(BriefValidationError) as excinfo:
+        generate_brief(
+            context,
+            model_name="gpt-4o-mini",
+            temperature=0.2,
+            settings=settings,
+        )
+
+    assert "schema" in str(excinfo.value)
+
+
+def test_make_provider_sets_openai_environment(monkeypatch: pytest.MonkeyPatch) -> None:
+    for var in ("OPENAI_BASE_URL", "OPENAI_API_BASE", "OPENAI_API_KEY"):
+        monkeypatch.delenv(var, raising=False)
+
+    settings = OpenAISettings(provider="openai", base_url="https://example.com/v1", api_key="token")
+    provider = settings.make_provider()
+
+    assert provider == "openai"
+    assert os.environ["OPENAI_BASE_URL"] == "https://example.com/v1"
+    assert os.environ["OPENAI_API_BASE"] == "https://example.com/v1"
+    assert os.environ["OPENAI_API_KEY"] == "token"
+
+
+def test_make_provider_sets_ollama_environment(monkeypatch: pytest.MonkeyPatch) -> None:
+    for var in ("OLLAMA_BASE_URL", "OLLAMA_API_KEY"):
+        monkeypatch.delenv(var, raising=False)
+
+    settings = OpenAISettings(provider="ollama", base_url="http://localhost:11434", api_key="ollama-key")
+    provider = settings.make_provider()
+
+    assert provider == "ollama"
+    assert os.environ["OLLAMA_BASE_URL"] == "http://localhost:11434"
+    assert os.environ["OLLAMA_API_KEY"] == "ollama-key"

@@ -8,14 +8,12 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import frontmatter
-from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
-from pydantic_ai import Agent
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic_ai import Agent, UnexpectedModelBehavior
 from pydantic_ai.models.openai import OpenAIChatModel
-from pydantic_ai.providers.ollama import OllamaProvider
-from pydantic_ai.providers.openai import OpenAIProvider
 from pydantic_ai.settings import ModelSettings
 
 from .project import ProjectConfig
@@ -25,6 +23,7 @@ DEFAULT_MODEL_NAME = "llama3.1:8b-instruct"
 DEFAULT_OPENAI_BASE_URL = "http://localhost:11434/v1"
 DEFAULT_OPENAI_API_KEY = "ollama"
 LLM_TIMEOUT_SECONDS = 300.0
+LLM_OUTPUT_RETRIES = 2
 
 
 class BriefingError(Exception):
@@ -155,11 +154,16 @@ class OpenAISettings:
 
         return cls(provider=provider, base_url=base_url, api_key=api_key)
 
-    def make_provider(self) -> OpenAIProvider | OllamaProvider:
-        """Instantiate the provider configured for this run."""
+    def make_provider(self) -> str:
+        """Configure environment variables for the selected provider and return its name."""
         if self.provider == "ollama":
-            return OllamaProvider(base_url=self.base_url, api_key=self.api_key)
-        return OpenAIProvider(base_url=self.base_url, api_key=self.api_key)
+            os.environ["OLLAMA_BASE_URL"] = self.base_url
+            os.environ["OLLAMA_API_KEY"] = self.api_key
+        else:
+            os.environ["OPENAI_BASE_URL"] = self.base_url
+            os.environ["OPENAI_API_BASE"] = self.base_url
+            os.environ["OPENAI_API_KEY"] = self.api_key
+        return self.provider
 
 
 Reporter = Callable[[str], None] | None
@@ -192,12 +196,14 @@ def generate_brief(
     temperature: float,
     reporter: Reporter = None,
     settings: OpenAISettings | None = None,
-    agent: Any | None = None,
+    agent: Agent[None, SeoBrief] | None = None,
     timeout_seconds: float = LLM_TIMEOUT_SECONDS,
 ) -> SeoBrief:
-    """Run the LLM call and validate the returned JSON."""
+    """Run the LLM call and return a validated SeoBrief."""
     resolved_settings = settings or OpenAISettings.from_env()
-    llm_agent = agent or _create_agent(model_name, resolved_settings, temperature=temperature)
+    llm_agent: Agent[None, SeoBrief] = (
+        _create_agent(model_name, resolved_settings, temperature=temperature) if agent is None else agent
+    )
 
     _report(
         reporter,
@@ -205,7 +211,11 @@ def generate_brief(
     )
 
     try:
-        raw_output = _invoke_agent(llm_agent, context.prompts.user_prompt, timeout_seconds=timeout_seconds)
+        brief = _invoke_agent(llm_agent, context.prompts.user_prompt, timeout_seconds=timeout_seconds)
+    except UnexpectedModelBehavior as exc:
+        raise BriefValidationError(
+            "LLM response never satisfied the SeoBrief schema, giving up after repeated retries."
+        ) from exc
     except TimeoutError as exc:
         raise BriefLLMError(f"LLM request timed out after {int(timeout_seconds)} seconds.") from exc
     except KeyboardInterrupt:
@@ -213,9 +223,8 @@ def generate_brief(
     except Exception as exc:  # pragma: no cover - surfaced to CLI
         raise BriefLLMError(f"LLM request failed: {exc}") from exc
 
-    _report(reporter, "LLM call complete, validating JSON payload.")
-
-    return _parse_brief_output(raw_output)
+    _report(reporter, "LLM call complete, structured brief validated.")
+    return brief
 
 
 def render_json(result: SeoBrief) -> str:
@@ -282,87 +291,35 @@ def _truncate(value: str, max_chars: int) -> tuple[str, bool]:
     return value[: max_chars - 1].rstrip() + " …", True
 
 
-def _create_agent(model_name: str, settings: OpenAISettings, *, temperature: float) -> Agent:
+def _create_agent(model_name: str, settings: OpenAISettings, *, temperature: float) -> Agent[None, SeoBrief]:
     """Instantiate the Pydantic AI agent for generating briefs."""
     provider = settings.make_provider()
-    model = OpenAIChatModel(model_name, provider=provider)
+    model = OpenAIChatModel(model_name, provider=cast(Any, provider))
     model_settings = ModelSettings(temperature=temperature)
-    return Agent(
+    return Agent[None, SeoBrief](
         model=model,
-        output_type=str,
+        output_type=SeoBrief,
         instructions=SYSTEM_PROMPT,
         model_settings=model_settings,
+        output_retries=LLM_OUTPUT_RETRIES,
     )
 
 
-def _invoke_agent(agent: Agent, prompt: str, *, timeout_seconds: float) -> str:
+def _invoke_agent(agent: Agent[None, SeoBrief], prompt: str, *, timeout_seconds: float) -> SeoBrief:
     """Run the agent with a timeout using asyncio."""
 
-    async def _call() -> str:
+    async def _call() -> SeoBrief:
         run = await agent.run(prompt)
-        output = getattr(run, "output", "")
-        if not isinstance(output, str):
-            raise TypeError("LLM output is not a string")
-        return output
+        output = getattr(run, "output", None)
+        if isinstance(output, SeoBrief):
+            return output
+        if isinstance(output, BaseModel):
+            return SeoBrief.model_validate(output.model_dump())
+        if isinstance(output, dict):
+            return SeoBrief.model_validate(output)
+        raise TypeError("LLM output is not a SeoBrief instance")
 
     return asyncio.run(asyncio.wait_for(_call(), timeout_seconds))
-
-
-def _parse_brief_output(payload: str) -> SeoBrief:
-    """Parse raw model output into a SeoBrief, extracting JSON when necessary."""
-    try:
-        return SeoBrief.model_validate_json(payload)
-    except ValidationError:
-        json_blob = _extract_first_json_block(payload)
-        if json_blob:
-            try:
-                return SeoBrief.model_validate_json(json_blob)
-            except ValidationError as exc:
-                raise BriefValidationError(_format_validation_error(exc)) from exc
-        raise BriefValidationError("LLM response did not contain valid JSON.") from None
-
-
-def _extract_first_json_block(text: str) -> str | None:
-    """Return the first balanced JSON object found in the text."""
-    start = text.find("{")
-    if start == -1:
-        return None
-
-    depth = 0
-    in_string = False
-    escape = False
-
-    for idx in range(start, len(text)):
-        char = text[idx]
-        if in_string:
-            if escape:
-                escape = False
-            elif char == "\\":
-                escape = True
-            elif char == '"':
-                in_string = False
-            continue
-
-        if char == '"':
-            in_string = True
-            continue
-        if char == "{":
-            depth += 1
-        elif char == "}":
-            depth -= 1
-            if depth == 0:
-                return text[start : idx + 1]
-
-    return None
-
-
-def _format_validation_error(exc: ValidationError) -> str:
-    messages: list[str] = []
-    for error in exc.errors():
-        location = ".".join(str(loc) for loc in error.get("loc", []) if loc != "__root__") or "__root__"
-        msg = error.get("msg", "validation error")
-        messages.append(f"{location}: {msg}")
-    return "; ".join(messages)
 
 
 def _current_timestamp() -> str:
