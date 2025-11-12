@@ -19,7 +19,7 @@ from pydantic_ai.settings import ModelSettings
 from .project import ProjectConfig
 from .prompts import SYSTEM_PROMPT, PromptBundle, build_prompt_bundle
 
-DEFAULT_MODEL_NAME = "llama3.1:8b-instruct"
+DEFAULT_MODEL_NAME = "mistral-nemo"
 DEFAULT_OPENAI_BASE_URL = "http://localhost:11434/v1"
 DEFAULT_OPENAI_API_KEY = "ollama"
 LLM_TIMEOUT_SECONDS = 300.0
