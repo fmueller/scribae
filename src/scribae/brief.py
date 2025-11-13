@@ -12,7 +12,7 @@ from typing import Any, cast
 
 import frontmatter
 from pydantic import BaseModel, ConfigDict, Field, field_validator
-from pydantic_ai import Agent, UnexpectedModelBehavior
+from pydantic_ai import Agent, NativeOutput, UnexpectedModelBehavior
 from pydantic_ai.models.openai import OpenAIChatModel
 from pydantic_ai.settings import ModelSettings
 
@@ -321,7 +321,7 @@ def _create_agent(model_name: str, settings: OpenAISettings, *, temperature: flo
     model_settings = ModelSettings(temperature=temperature)
     return Agent[None, SeoBrief](
         model=model,
-        output_type=SeoBrief,
+        output_type=NativeOutput(SeoBrief, name="SEO Brief", strict=True),
         instructions=SYSTEM_PROMPT,
         model_settings=model_settings,
         output_retries=LLM_OUTPUT_RETRIES,
