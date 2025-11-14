@@ -7,7 +7,16 @@ from faker import Faker
 from pydantic import ValidationError
 from pydantic_ai import UnexpectedModelBehavior
 
-from scribae.brief import BriefingContext, BriefValidationError, NoteDetails, OpenAISettings, SeoBrief, generate_brief
+from scribae.brief import (
+    DEFAULT_OPENAI_API_KEY,
+    DEFAULT_OPENAI_BASE_URL,
+    BriefingContext,
+    BriefValidationError,
+    NoteDetails,
+    OpenAISettings,
+    SeoBrief,
+    generate_brief,
+)
 from scribae.project import default_project
 from scribae.prompts import PromptBundle
 
@@ -95,7 +104,7 @@ def test_generate_brief_returns_structured_result(monkeypatch: pytest.MonkeyPatc
     context = _briefing_context(fake)
     brief_obj = SeoBrief(**_base_payload(fake))
     monkeypatch.setattr("scribae.brief._invoke_agent", lambda *_, **__: brief_obj)
-    settings = OpenAISettings(provider="openai", base_url="http://example", api_key="secret")
+    settings = OpenAISettings(base_url="http://example", api_key="secret")
 
     result = generate_brief(
         context,
@@ -112,7 +121,7 @@ def test_generate_brief_raises_validation_error_when_retries_exhausted(
     fake: Faker,
 ) -> None:
     context = _briefing_context(fake)
-    settings = OpenAISettings(provider="openai", base_url="http://example", api_key="secret")
+    settings = OpenAISettings(base_url="http://example", api_key="secret")
 
     def _boom(*_: object, **__: object) -> None:
         raise UnexpectedModelBehavior("Tool 'final_result' exceeded max retries count of 2")
@@ -130,26 +139,34 @@ def test_generate_brief_raises_validation_error_when_retries_exhausted(
     assert "schema" in str(excinfo.value)
 
 
-def test_make_provider_sets_openai_environment(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_configure_environment_sets_openai_environment(monkeypatch: pytest.MonkeyPatch) -> None:
     for var in ("OPENAI_BASE_URL", "OPENAI_API_BASE", "OPENAI_API_KEY"):
         monkeypatch.delenv(var, raising=False)
 
-    settings = OpenAISettings(provider="openai", base_url="https://example.com/v1", api_key="token")
-    provider = settings.make_provider()
+    settings = OpenAISettings(base_url="https://example.com/v1", api_key="token")
+    settings.configure_environment()
 
-    assert provider == "openai"
     assert os.environ["OPENAI_BASE_URL"] == "https://example.com/v1"
     assert os.environ["OPENAI_API_BASE"] == "https://example.com/v1"
     assert os.environ["OPENAI_API_KEY"] == "token"
 
 
-def test_make_provider_sets_ollama_environment(monkeypatch: pytest.MonkeyPatch) -> None:
-    for var in ("OLLAMA_BASE_URL", "OLLAMA_API_KEY"):
+def test_openai_settings_from_env_prefers_api_base(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("OPENAI_API_BASE", "https://custom.example/v1")
+    monkeypatch.setenv("OPENAI_BASE_URL", "https://ignored.example/v1")
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-secret")
+
+    settings = OpenAISettings.from_env()
+
+    assert settings.base_url == "https://custom.example/v1"
+    assert settings.api_key == "sk-secret"
+
+
+def test_openai_settings_from_env_uses_defaults(monkeypatch: pytest.MonkeyPatch) -> None:
+    for var in ("OPENAI_API_BASE", "OPENAI_BASE_URL", "OPENAI_API_KEY"):
         monkeypatch.delenv(var, raising=False)
 
-    settings = OpenAISettings(provider="ollama", base_url="http://localhost:11434", api_key="ollama-key")
-    provider = settings.make_provider()
+    settings = OpenAISettings.from_env()
 
-    assert provider == "ollama"
-    assert os.environ["OLLAMA_BASE_URL"] == "http://localhost:11434"
-    assert os.environ["OLLAMA_API_KEY"] == "ollama-key"
+    assert settings.base_url == DEFAULT_OPENAI_BASE_URL
+    assert settings.api_key == DEFAULT_OPENAI_API_KEY

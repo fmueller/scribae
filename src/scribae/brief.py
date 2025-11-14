@@ -21,7 +21,7 @@ from .prompts import SYSTEM_PROMPT, PromptBundle, build_prompt_bundle
 
 DEFAULT_MODEL_NAME = "mistral-nemo"
 DEFAULT_OPENAI_BASE_URL = "http://localhost:11434/v1"
-DEFAULT_OPENAI_API_KEY = "ollama"
+DEFAULT_OPENAI_API_KEY = "no-key"
 LLM_TIMEOUT_SECONDS = 300.0
 LLM_OUTPUT_RETRIES = 2
 
@@ -146,47 +146,21 @@ class BriefingContext:
 class OpenAISettings:
     """Resolved OpenAI-compatible endpoint configuration."""
 
-    provider: str
     base_url: str
     api_key: str
 
     @classmethod
     def from_env(cls) -> OpenAISettings:
         """Read OpenAI-compatible configuration from the environment."""
-        provider = os.environ.get("SCRIBAE_LLM_PROVIDER")
+        base_url = os.environ.get("OPENAI_API_BASE") or os.environ.get("OPENAI_BASE_URL") or DEFAULT_OPENAI_BASE_URL
+        api_key = os.environ.get("OPENAI_API_KEY") or DEFAULT_OPENAI_API_KEY
+        return cls(base_url=base_url, api_key=api_key)
 
-        openai_base = os.environ.get("OPENAI_API_BASE") or os.environ.get("OPENAI_BASE_URL")
-        openai_key = os.environ.get("OPENAI_API_KEY")
-
-        ollama_base = os.environ.get("OLLAMA_BASE_URL")
-        ollama_key = os.environ.get("OLLAMA_API_KEY")
-
-        if provider:
-            provider = provider.lower()
-        elif ollama_base or ollama_key:
-            provider = "ollama"
-        else:
-            provider = "openai"
-
-        if provider == "ollama":
-            base_url = ollama_base or openai_base or DEFAULT_OPENAI_BASE_URL
-            api_key = ollama_key or openai_key or DEFAULT_OPENAI_API_KEY
-        else:
-            base_url = openai_base or DEFAULT_OPENAI_BASE_URL
-            api_key = openai_key or DEFAULT_OPENAI_API_KEY
-
-        return cls(provider=provider, base_url=base_url, api_key=api_key)
-
-    def make_provider(self) -> str:
-        """Configure environment variables for the selected provider and return its name."""
-        if self.provider == "ollama":
-            os.environ["OLLAMA_BASE_URL"] = self.base_url
-            os.environ["OLLAMA_API_KEY"] = self.api_key
-        else:
-            os.environ["OPENAI_BASE_URL"] = self.base_url
-            os.environ["OPENAI_API_BASE"] = self.base_url
-            os.environ["OPENAI_API_KEY"] = self.api_key
-        return self.provider
+    def configure_environment(self) -> None:
+        """Configure environment variables expected by OpenAI-compatible clients."""
+        os.environ["OPENAI_BASE_URL"] = self.base_url
+        os.environ["OPENAI_API_BASE"] = self.base_url
+        os.environ["OPENAI_API_KEY"] = self.api_key
 
 
 Reporter = Callable[[str], None] | None
@@ -316,8 +290,8 @@ def _truncate(value: str, max_chars: int) -> tuple[str, bool]:
 
 def _create_agent(model_name: str, settings: OpenAISettings, *, temperature: float) -> Agent[None, SeoBrief]:
     """Instantiate the Pydantic AI agent for generating briefs."""
-    provider = settings.make_provider()
-    model = OpenAIChatModel(model_name, provider=cast(Any, provider))
+    settings.configure_environment()
+    model = OpenAIChatModel(model_name, provider=cast(Any, "openai"))
     model_settings = ModelSettings(temperature=temperature)
     return Agent[None, SeoBrief](
         model=model,
