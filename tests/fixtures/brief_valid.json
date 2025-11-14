@@ -1,0 +1,32 @@
+{
+  "angle": "pragmatic remediation guide",
+  "audience": "platform engineering leads",
+  "faq": [
+    {
+      "answer": "Review telemetry daily during active incidents and weekly during stable periods.",
+      "question": "How often should observability data be reviewed?"
+    },
+    {
+      "answer": "Begin with structured logging and basic service-level metrics before layering on tracing.",
+      "question": "What is the best starting point for new observability programs?"
+    }
+  ],
+  "h1": "Build an Observability Strategy Without Slowing Releases",
+  "meta_description": "Turn plain notes into an observability brief with practical logging, tracing, and metrics checklists.",
+  "outline": [
+    "Introduction to Observability",
+    "Logging Foundations",
+    "Tracing Distributed Services",
+    "Metrics and Capacity Planning",
+    "AI Generated Status Reports",
+    "Summary and Next Steps"
+  ],
+  "primary_keyword": "observability strategy",
+  "search_intent": "informational",
+  "secondary_keywords": [
+    "logging foundations",
+    "distributed tracing",
+    "service metrics"
+  ],
+  "title": "Observability Playbook for Busy Engineers"
+}

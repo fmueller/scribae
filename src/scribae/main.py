@@ -7,6 +7,7 @@ import typer
 from . import brief
 from .brief import DEFAULT_MODEL_NAME, BriefingError
 from .project import default_project, load_project
+from .write_cli import write_command
 
 app = typer.Typer(help="Scribae CLI — generate writing briefs from local notes.")
 
@@ -173,6 +174,9 @@ def brief_command(
         return
 
     typer.echo(json_payload)
+
+
+app.command("write", help="Generate article body from a note + SeoBrief.")(write_command)
 
 
 def main() -> None:

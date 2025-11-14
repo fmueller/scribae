@@ -10,14 +10,28 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, cast
 
-import frontmatter
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 from pydantic_ai import Agent, NativeOutput, UnexpectedModelBehavior
 from pydantic_ai.models.openai import OpenAIChatModel
 from pydantic_ai.settings import ModelSettings
 
+from .io_utils import NoteDetails, load_note
 from .project import ProjectConfig
 from .prompts import SYSTEM_PROMPT, PromptBundle, build_prompt_bundle
+
+__all__ = [
+    # re-exports for tests and public API
+    "NoteDetails",
+    # main models and types
+    "SeoBrief",
+    "BriefingContext",
+    "OpenAISettings",
+    # functions
+    "prepare_context",
+    "generate_brief",
+    "render_json",
+    "save_prompt_artifacts",
+]
 
 DEFAULT_MODEL_NAME = "mistral-nemo"
 DEFAULT_OPENAI_BASE_URL = "http://localhost:11434/v1"
@@ -122,18 +136,6 @@ class SeoBrief(BaseModel):
 
 
 @dataclass(frozen=True)
-class NoteDetails:
-    """Normalized representation of a Markdown note and its metadata."""
-
-    path: Path
-    title: str
-    body: str
-    metadata: dict[str, Any]
-    truncated: bool
-    max_chars: int
-
-
-@dataclass(frozen=True)
 class BriefingContext:
     """Artifacts required to generate a brief."""
 
@@ -177,7 +179,15 @@ def prepare_context(
     if max_chars <= 0:
         raise BriefValidationError("--max-chars must be greater than zero.")
 
-    note = _load_note(note_path, max_chars=max_chars)
+    try:
+        note = load_note(note_path, max_chars=max_chars)
+    except FileNotFoundError as exc:
+        raise BriefFileError(f"Note file not found: {note_path}") from exc
+    except ValueError as exc:
+        raise BriefFileError(str(exc)) from exc
+    except OSError as exc:  # pragma: no cover - surfaced by CLI
+        raise BriefFileError(f"Unable to read note: {exc}") from exc
+
     _report(reporter, f"Loaded note '{note.title}' from {note.path}")
 
     prompts = build_prompt_bundle(project=project, note_title=note.title, note_content=note.body)
@@ -249,43 +259,6 @@ def save_prompt_artifacts(
     note_path.write_text(context.note.body, encoding="utf-8")
 
     return prompt_path, note_path
-
-
-def _load_note(note_path: Path, *, max_chars: int) -> NoteDetails:
-    """Load Markdown note (including YAML front matter)."""
-    try:
-        post = frontmatter.load(note_path)
-    except FileNotFoundError as exc:
-        raise BriefFileError(f"Note file not found: {note_path}") from exc
-    except OSError as exc:
-        raise BriefFileError(f"Unable to read note: {exc}") from exc
-    except Exception as exc:
-        raise BriefFileError(f"Unable to parse note: {exc}") from exc
-
-    metadata = dict(post.metadata or {})
-    body = post.content.strip()
-
-    truncated_body, truncated = _truncate(body, max_chars)
-
-    note_title = (
-        metadata.get("title") or metadata.get("name") or note_path.stem.replace("_", " ").replace("-", " ").title()
-    )
-
-    return NoteDetails(
-        path=note_path,
-        title=note_title,
-        body=truncated_body,
-        metadata=metadata,
-        truncated=truncated,
-        max_chars=max_chars,
-    )
-
-
-def _truncate(value: str, max_chars: int) -> tuple[str, bool]:
-    """Truncate the note body to the configured number of characters."""
-    if len(value) <= max_chars:
-        return value, False
-    return value[: max_chars - 1].rstrip() + " …", True
 
 
 def _create_agent(model_name: str, settings: OpenAISettings, *, temperature: float) -> Agent[None, SeoBrief]:
