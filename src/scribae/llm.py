@@ -2,18 +2,15 @@ from __future__ import annotations
 
 import os
 
-from pydantic_ai.models.openai import OpenAIModel
+from pydantic_ai.models.openai import OpenAIChatModel
+from pydantic_ai.settings import ModelSettings
 
 DEFAULT_BASE_URL = "http://localhost:11434/v1"
 DEFAULT_API_KEY = "ollama"
 
 
-def make_model(model_name: str, *, temperature: float) -> OpenAIModel:
-    """Return an OpenAI-compatible model configured for local/remote endpoints.
-
-    pydantic-ai's OpenAIModel reads credentials and base URL from environment variables.
-    We set them here and pass typed settings for temperature.
-    """
+def make_model(model_name: str, *, model_settings: ModelSettings) -> OpenAIChatModel:
+    """Return an OpenAI-compatible model configured for local/remote endpoints."""
     base_url = os.getenv("OPENAI_API_BASE") or os.getenv("OPENAI_BASE_URL") or DEFAULT_BASE_URL
     api_key = os.getenv("OPENAI_API_KEY") or DEFAULT_API_KEY
 
@@ -22,8 +19,7 @@ def make_model(model_name: str, *, temperature: float) -> OpenAIModel:
     os.environ["OPENAI_API_BASE"] = base_url
     os.environ["OPENAI_API_KEY"] = api_key
 
-    # Construct model with supported, typed parameters
-    return OpenAIModel(model_name, provider="openai-chat", settings={"temperature": float(temperature)})
+    return OpenAIChatModel(model_name, provider="openai", settings=model_settings)
 
 
 __all__ = ["make_model"]

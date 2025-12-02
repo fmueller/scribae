@@ -10,6 +10,7 @@ from pathlib import Path
 
 from pydantic import ValidationError
 from pydantic_ai import Agent
+from pydantic_ai.settings import ModelSettings
 
 from .brief import SeoBrief
 from .io_utils import NoteDetails, load_note
@@ -241,7 +242,8 @@ def _load_brief(path: Path) -> SeoBrief:
 
 def _invoke_model(prompt: str, *, model_name: str, temperature: float) -> str:
     """Call the writer model and return Markdown text."""
-    model = make_model(model_name, temperature=temperature)
+    model_settings = ModelSettings(temperature=temperature)
+    model = make_model(model_name, model_settings=model_settings)
     agent = Agent(model=model, instructions=SYSTEM_PROMPT)
 
     async def _call() -> str:

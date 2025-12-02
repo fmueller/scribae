@@ -8,14 +8,14 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any, cast
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 from pydantic_ai import Agent, NativeOutput, UnexpectedModelBehavior
-from pydantic_ai.models.openai import OpenAIChatModel
 from pydantic_ai.settings import ModelSettings
 
 from .io_utils import NoteDetails, load_note
+from .llm import make_model
 from .project import ProjectConfig
 from .prompts import SYSTEM_PROMPT, PromptBundle, build_prompt_bundle
 
@@ -264,13 +264,12 @@ def save_prompt_artifacts(
 def _create_agent(model_name: str, settings: OpenAISettings, *, temperature: float) -> Agent[None, SeoBrief]:
     """Instantiate the Pydantic AI agent for generating briefs."""
     settings.configure_environment()
-    model = OpenAIChatModel(model_name, provider=cast(Any, "openai"))
     model_settings = ModelSettings(temperature=temperature)
+    model = make_model(model_name, model_settings=model_settings)
     return Agent[None, SeoBrief](
         model=model,
         output_type=NativeOutput(SeoBrief, name="SEO Brief", strict=True),
         instructions=SYSTEM_PROMPT,
-        model_settings=model_settings,
         output_retries=LLM_OUTPUT_RETRIES,
     )
 
