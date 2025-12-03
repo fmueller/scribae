@@ -6,6 +6,7 @@ import typer
 
 from . import brief
 from .brief import DEFAULT_MODEL_NAME, BriefingError
+from .meta_cli import meta_command
 from .project import default_project, load_project
 from .write_cli import write_command
 
@@ -177,6 +178,7 @@ def brief_command(
 
 
 app.command("write", help="Generate article body from a note + SeoBrief.")(write_command)
+app.command("meta", help="Generate final article metadata/frontmatter.")(meta_command)
 
 
 def main() -> None:

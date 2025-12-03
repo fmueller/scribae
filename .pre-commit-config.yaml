@@ -17,6 +17,4 @@ repos:
       - id: name-tests-test
       - id: pretty-format-json
         args: [ "--autofix", "--indent=2" ]
-        exclude: |
-          ^tests/fixtures/brief_invalid\.json$
       - id: trailing-whitespace

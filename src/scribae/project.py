@@ -16,6 +16,7 @@ class ProjectConfig(TypedDict):
     tone: str
     keywords: list[str]
     language: str
+    allowed_tags: list[str] | None
 
 
 DEFAULT_PROJECT: ProjectConfig = {
@@ -25,6 +26,7 @@ DEFAULT_PROJECT: ProjectConfig = {
     "tone": "neutral",
     "keywords": [],
     "language": "en",
+    "allowed_tags": None,
 }
 
 
@@ -64,6 +66,7 @@ def _merge_with_defaults(data: Mapping[str, Any]) -> ProjectConfig:
         "tone": DEFAULT_PROJECT["tone"],
         "keywords": list(DEFAULT_PROJECT["keywords"]),
         "language": DEFAULT_PROJECT["language"],
+        "allowed_tags": DEFAULT_PROJECT["allowed_tags"],
     }
 
     for key in ("site_name", "domain", "audience", "tone", "language"):
@@ -72,6 +75,7 @@ def _merge_with_defaults(data: Mapping[str, Any]) -> ProjectConfig:
 
     keywords_value = data.get("keywords", merged["keywords"])
     merged["keywords"] = _normalize_keywords(keywords_value)
+    merged["allowed_tags"] = _normalize_allowed_tags(data.get("allowed_tags", merged["allowed_tags"]))
 
     return cast(ProjectConfig, merged)
 
@@ -87,3 +91,17 @@ def _normalize_keywords(value: Any) -> list[str]:
         raise ValueError("Project keywords must be a list or comma-separated string.")
 
     return [item for item in candidates if item]
+
+
+def _normalize_allowed_tags(value: Any) -> list[str] | None:
+    if value is None:
+        return None
+    if isinstance(value, str):
+        candidates = [piece.strip() for piece in value.split(",")]
+    elif isinstance(value, list):
+        candidates = [str(item).strip() for item in value]
+    else:
+        raise ValueError("Project allowed_tags must be a list or comma-separated string.")
+
+    cleaned = [item for item in candidates if item]
+    return cleaned or None

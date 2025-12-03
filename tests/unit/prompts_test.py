@@ -18,6 +18,7 @@ def test_build_user_prompt_includes_project_details(fake: Faker) -> None:
         "tone": tone,
         "keywords": keywords,
         "language": "de",
+        "allowed_tags": None,
     }
 
     note_title = fake.sentence(nb_words=3)
@@ -39,6 +40,7 @@ def test_build_prompt_bundle_uses_system_prompt(fake: Faker) -> None:
         "tone": fake.word(),
         "keywords": [],
         "language": "en",
+        "allowed_tags": None,
     }
 
     bundle = build_prompt_bundle(project=project, note_title=fake.sentence(nb_words=3), note_content=fake.paragraph())
