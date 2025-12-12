@@ -24,6 +24,7 @@ __all__ = [
     # main models and types
     "SeoBrief",
     "BriefingContext",
+    "BriefingError",
     "OpenAISettings",
     # functions
     "prepare_context",
