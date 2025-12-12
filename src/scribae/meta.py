@@ -27,7 +27,7 @@ Reporter = Callable[[str], None] | None
 
 
 class MetaError(Exception):
-    """Base class for meta command failures."""
+    """Base class for meta-command failures."""
 
     exit_code = 1
 
@@ -63,7 +63,7 @@ class ArticleMeta(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     title: str
-    slug: constr(pattern=r"^[a-z0-9]+(?:-[a-z0-9]+)*$")  # type: ignore[valid-type]
+    slug: constr(pattern=r"^[a-z0-9]+(-[a-z0-9]+)*$")  # type: ignore[valid-type]
     excerpt: constr(max_length=200)  # type: ignore[valid-type]
     tags: list[str]
     reading_time: int | None = None
@@ -150,6 +150,7 @@ class MetaContext:
     project: ProjectConfig
     overwrite: OverwriteMode
     current_meta: dict[str, Any]
+    fabricated_fields: bool
 
 
 @dataclass(frozen=True)
@@ -231,8 +232,15 @@ def prepare_context(
     brief = _load_brief(brief_path) if brief_path else None
 
     _report(reporter, f"Loaded body from {body.path.name} ({'truncated' if body.truncated else 'full'}).")
-    current_meta = _build_seed_meta(body, brief=brief, project=project, overwrite=overwrite)
-    return MetaContext(body=body, brief=brief, project=project, overwrite=overwrite, current_meta=current_meta)
+    current_meta, fabricated_fields = _build_seed_meta(body, brief=brief, project=project, overwrite=overwrite)
+    return MetaContext(
+        body=body,
+        brief=brief,
+        project=project,
+        overwrite=overwrite,
+        current_meta=current_meta,
+        fabricated_fields=fabricated_fields,
+    )
 
 
 def build_prompt_bundle(context: MetaContext) -> PromptBundle:
@@ -269,14 +277,14 @@ def generate_metadata(
     model_name: str,
     temperature: float,
     reporter: Reporter = None,
-    settings: OpenAISettings | None = None,
     agent: Agent[None, ArticleMeta] | None = None,
     prompts: PromptBundle | None = None,
     timeout_seconds: float = META_TIMEOUT_SECONDS,
+    force_llm_on_missing: bool = True,
 ) -> ArticleMeta:
     """Generate final article metadata, calling the LLM when needed."""
     prompts = prompts or build_prompt_bundle(context)
-    needs_llm = _needs_llm(context)
+    needs_llm, reason = _needs_llm(context, force_llm_on_missing=force_llm_on_missing)
 
     if not needs_llm:
         try:
@@ -284,14 +292,15 @@ def generate_metadata(
         except ValidationError as exc:
             raise MetaValidationError(f"Metadata validation failed: {exc}") from exc
 
-    resolved_settings = settings or OpenAISettings.from_env()
+    resolved_settings = OpenAISettings.from_env()
     llm_agent: Agent[None, ArticleMeta] = (
-        agent if agent is not None else _create_agent(model_name, resolved_settings, temperature=temperature)
+        agent if agent is not None else _create_agent(model_name, temperature)
     )
 
     _report(
         reporter,
-        f"Calling model '{model_name}' via {resolved_settings.base_url}",
+        f"Calling model '{model_name}' via {resolved_settings.base_url}"
+        + (f" (reason: {reason})" if reason else ""),
     )
 
     try:
@@ -407,9 +416,14 @@ def _build_seed_meta(
     brief: SeoBrief | None,
     project: ProjectConfig,
     overwrite: OverwriteMode,
-) -> dict[str, Any]:
-    """Return a metadata seed derived from frontmatter and heuristics."""
+) -> tuple[dict[str, Any], bool]:
+    """Return a metadata seed derived from frontmatter and heuristics.
+
+    The boolean indicates whether any key fields (tags/keywords/slug) were fabricated
+    from fallbacks instead of provided data.
+    """
     fm = body.frontmatter
+    fabricated = False
     meta: dict[str, Any] = {
         "title": _clean_text(fm.get("title") or fm.get("name")),
         "slug": _slugify(_clean_text(fm.get("slug")) or ""),
@@ -428,10 +442,12 @@ def _build_seed_meta(
             meta["excerpt"] = _truncate(brief.meta_description, 200)[0]
         if _is_missing(meta["keywords"]) and brief is not None:
             meta["keywords"] = [brief.primary_keyword, *brief.secondary_keywords]
+            fabricated = True
         if _is_missing(meta["search_intent"]) and brief is not None:
             meta["search_intent"] = brief.search_intent
         if not meta["tags"] and brief is not None:
             meta["tags"] = [_slugify(tag) for tag in brief.secondary_keywords][:8]
+            fabricated = True
         if _is_missing(meta["language"]):
             meta["language"] = project["language"]
 
@@ -439,13 +455,15 @@ def _build_seed_meta(
         meta["title"] = body.path.stem.replace("_", " ").replace("-", " ").title()
     if _is_missing(meta["slug"]) and not _is_missing(meta["title"]):
         meta["slug"] = _slugify(meta["title"])
+        fabricated = True
     if _is_missing(meta["excerpt"]):
         meta["excerpt"] = _excerpt_from_body(body.content)
     if not meta["tags"]:
         meta["tags"] = _fallback_tags(project, brief=brief)
+        fabricated = True
 
     meta["tags"] = _apply_allowed_tags(meta["tags"], project.get("allowed_tags"))
-    return meta
+    return meta, fabricated
 
 
 def _apply_allowed_tags(tags: list[str], allowed: list[str] | None) -> list[str]:
@@ -456,11 +474,24 @@ def _apply_allowed_tags(tags: list[str], allowed: list[str] | None) -> list[str]
     return filtered or tags
 
 
-def _needs_llm(context: MetaContext) -> bool:
+def _needs_llm(context: MetaContext, *, force_llm_on_missing: bool) -> tuple[bool, str | None]:
+    if context.overwrite == OverwriteMode.NONE:
+        return False, "overwrite=none skips LLM"
+    if context.overwrite == OverwriteMode.ALL:
+        return True, "overwrite=all"
+    if context.overwrite == OverwriteMode.MISSING and force_llm_on_missing:
+        return True, "overwrite=missing with force_llm_on_missing"
+
     required_fields = ("title", "slug", "excerpt")
     missing_required = any(_is_missing(context.current_meta.get(field)) for field in required_fields)
     tags_missing = not context.current_meta.get("tags")
-    return context.overwrite == OverwriteMode.ALL or missing_required or tags_missing
+    if missing_required:
+        return True, "required fields missing"
+    if tags_missing:
+        return True, "tags missing"
+    if context.fabricated_fields:
+        return True, "metadata fabricated from fallbacks"
+    return False, None
 
 
 def _finalize_article_meta(
@@ -532,8 +563,7 @@ def _render_brief_context(brief: SeoBrief | None) -> str:
     ).strip()
 
 
-def _create_agent(model_name: str, settings: OpenAISettings, *, temperature: float) -> Agent[None, ArticleMeta]:
-    settings.configure_environment()
+def _create_agent(model_name: str, temperature: float) -> Agent[None, ArticleMeta]:
     model_settings = ModelSettings(temperature=temperature)
     model = make_model(model_name, model_settings=model_settings)
     return Agent[None, ArticleMeta](
@@ -556,31 +586,9 @@ def _invoke_agent(agent: Agent[None, ArticleMeta], prompt: str, *, timeout_secon
             return ArticleMeta.model_validate(output.model_dump())
         if isinstance(output, dict):
             return ArticleMeta.model_validate(output)
-        if isinstance(output, str):
-            parsed = _coerce_json_object(output)
-            return ArticleMeta.model_validate(parsed)
         raise TypeError("LLM output is not an ArticleMeta instance")
 
     return asyncio.run(asyncio.wait_for(_call(), timeout_seconds))
-
-
-def _coerce_json_object(payload: str) -> dict[str, Any]:
-    try:
-        parsed = json.loads(payload)
-        if isinstance(parsed, dict):
-            return parsed
-    except json.JSONDecodeError:
-        pass
-
-    match = re.search(r"\{.*\}", payload, re.DOTALL)
-    if match:
-        try:
-            parsed_fragment = json.loads(match.group(0))
-            if isinstance(parsed_fragment, dict):
-                return parsed_fragment
-        except json.JSONDecodeError as exc:
-            raise MetaValidationError(f"Unable to parse LLM JSON: {exc}") from exc
-    raise MetaValidationError("LLM output was not valid JSON.")
 
 
 def _truncate(value: str, max_chars: int) -> tuple[str, bool]:

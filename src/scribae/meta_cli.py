@@ -97,6 +97,11 @@ def meta_command(
         "-v",
         help="Print progress information to stderr.",
     ),
+    force_llm_on_missing: bool = typer.Option(  # noqa: B008
+        True,
+        "--force-llm-on-missing/--no-force-llm-on-missing",
+        help="When overwrite=missing, still call the LLM before preserving existing fields.",
+    ),
     out: Path | None = typer.Option(  # noqa: B008
         None,
         "--out",
@@ -161,6 +166,7 @@ def meta_command(
             temperature=temperature,
             reporter=reporter,
             prompts=prompts,
+            force_llm_on_missing=force_llm_on_missing,
         )
     except KeyboardInterrupt:
         typer.secho("Cancelled by user.", err=True, fg=typer.colors.YELLOW)

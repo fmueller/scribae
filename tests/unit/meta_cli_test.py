@@ -120,6 +120,7 @@ def test_meta_respects_frontmatter_missing_mode(
     payload = json.loads(output_path.read_text(encoding="utf-8"))
     assert payload["title"] == "Frontmatter Observability Guide"
     assert "keep-this" in payload["tags"]
+    assert stub.prompts
 
 
 def test_meta_overwrite_all_mode(
@@ -228,3 +229,166 @@ def test_meta_invalid_project_exit_code(body_without_frontmatter: Path, brief_pa
     )
 
     assert result.exit_code == 5
+
+
+def test_meta_missing_mode_invokes_llm_and_preserves_frontmatter(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    stub = StubLLM()
+    stub.meta = stub.meta.model_copy(
+        update={"title": "Changed by LLM", "slug": "changed-slug", "tags": ["llm-tag"], "excerpt": "LLM excerpt"}
+    )
+    monkeypatch.setattr("scribae.meta._invoke_agent", stub)
+
+    body_path = tmp_path / "body_complete.md"
+    body_path.write_text(
+        """---
+title: "Existing Title"
+slug: "existing-slug"
+summary: "Existing summary."
+tags:
+  - existing-tag
+lang: "en"
+keywords:
+  - existing-keyword
+search_intent: informational
+---
+
+Content body that should not change the preserved metadata.
+""",
+        encoding="utf-8",
+    )
+
+    output_path = tmp_path / "meta.json"
+    result = runner.invoke(
+        app,
+        [
+            "meta",
+            "--body",
+            str(body_path),
+            "--overwrite",
+            "missing",
+            "--format",
+            "json",
+            "--out",
+            str(output_path),
+        ],
+    )
+
+    assert result.exit_code == 0, result.stderr
+    payload = json.loads(output_path.read_text(encoding="utf-8"))
+    assert payload["title"] == "Existing Title"
+    assert payload["slug"] == "existing-slug"
+    assert payload["excerpt"] == "Existing summary."
+    assert payload["tags"] == ["existing-tag"]
+    assert payload["keywords"] == ["existing-keyword"]
+    assert payload["search_intent"] == "informational"
+    assert stub.prompts
+
+
+def test_meta_overwrite_none_skips_llm(
+    monkeypatch: pytest.MonkeyPatch,
+    body_without_frontmatter: Path,
+    tmp_path: Path,
+) -> None:
+    def _should_not_be_called(*args: object, **kwargs: object) -> None:  # pragma: no cover - guard
+        raise AssertionError("LLM should not be invoked for overwrite=none")
+
+    monkeypatch.setattr("scribae.meta._invoke_agent", _should_not_be_called)
+
+    output_path = tmp_path / "meta.json"
+    result = runner.invoke(
+        app,
+        [
+            "meta",
+            "--body",
+            str(body_without_frontmatter),
+            "--overwrite",
+            "none",
+            "--format",
+            "json",
+            "--out",
+            str(output_path),
+        ],
+    )
+
+    assert result.exit_code == 0, result.stderr
+    payload = json.loads(output_path.read_text(encoding="utf-8"))
+    assert payload["title"]
+    assert payload["slug"]
+    assert payload["excerpt"]
+
+
+def test_meta_missing_mode_can_skip_llm_when_flag_disabled(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    def _should_not_be_called(*args: object, **kwargs: object) -> None:  # pragma: no cover - guard
+        raise AssertionError("LLM should not be invoked when force_llm_on_missing is disabled")
+
+    monkeypatch.setattr("scribae.meta._invoke_agent", _should_not_be_called)
+
+    body_path = tmp_path / "body_full_frontmatter.md"
+    body_path.write_text(
+        """---
+title: "Frontmatter Title"
+slug: "frontmatter-title"
+summary: "Frontmatter summary."
+tags:
+  - frontmatter-tag
+---
+
+Body content that should not require LLM.
+""",
+        encoding="utf-8",
+    )
+
+    output_path = tmp_path / "meta.json"
+    result = runner.invoke(
+        app,
+        [
+            "meta",
+            "--body",
+            str(body_path),
+            "--overwrite",
+            "missing",
+            "--no-force-llm-on-missing",
+            "--format",
+            "json",
+            "--out",
+            str(output_path),
+        ],
+    )
+
+    assert result.exit_code == 0, result.stderr
+    payload = json.loads(output_path.read_text(encoding="utf-8"))
+    assert payload["title"] == "Frontmatter Title"
+    assert payload["slug"] == "frontmatter-title"
+    assert payload["tags"] == ["frontmatter-tag"]
+
+
+def test_meta_reports_fabricated_fields_reason(
+    monkeypatch: pytest.MonkeyPatch, body_without_frontmatter: Path, tmp_path: Path
+) -> None:
+    stub = StubLLM()
+    monkeypatch.setattr("scribae.meta._invoke_agent", stub)
+
+    result = runner.invoke(
+        app,
+        [
+            "meta",
+            "--body",
+            str(body_without_frontmatter),
+            "--overwrite",
+            "missing",
+            "--format",
+            "json",
+            "--out",
+            str(tmp_path / "dummy.json"),
+            "--verbose",
+        ],
+    )
+
+    assert result.exit_code == 0, result.stderr
+    assert stub.prompts
+    assert "reason: overwrite=missing with force_llm_on_missing" in result.stderr
