@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 
 from pydantic_ai.models.openai import OpenAIChatModel
+from pydantic_ai.providers.openai import OpenAIProvider
 from pydantic_ai.settings import ModelSettings
 
 DEFAULT_BASE_URL = "http://localhost:11434/v1"
@@ -14,12 +15,9 @@ def make_model(model_name: str, *, model_settings: ModelSettings) -> OpenAIChatM
     base_url = os.getenv("OPENAI_API_BASE") or os.getenv("OPENAI_BASE_URL") or DEFAULT_BASE_URL
     api_key = os.getenv("OPENAI_API_KEY") or DEFAULT_API_KEY
 
-    # Ensure env vars are set for providers that read from environment
-    os.environ["OPENAI_BASE_URL"] = base_url
-    os.environ["OPENAI_API_BASE"] = base_url
-    os.environ["OPENAI_API_KEY"] = api_key
+    provider = OpenAIProvider(base_url=base_url, api_key=api_key)
+    return OpenAIChatModel(model_name, provider=provider, settings=model_settings)
 
-    return OpenAIChatModel(model_name, provider="openai", settings=model_settings)
 
 
 __all__ = ["make_model"]
