@@ -5,7 +5,8 @@ from pathlib import Path
 import typer
 
 from . import brief
-from .brief import DEFAULT_MODEL_NAME, BriefingError
+from .brief import BriefingError
+from .llm import DEFAULT_MODEL_NAME
 from .meta_cli import meta_command
 from .project import default_project, load_project
 from .write_cli import write_command

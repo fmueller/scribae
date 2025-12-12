@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import asyncio
 import json
-import os
 import re
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -15,7 +14,7 @@ from pydantic_ai import Agent, NativeOutput, UnexpectedModelBehavior
 from pydantic_ai.settings import ModelSettings
 
 from .io_utils import NoteDetails, load_note
-from .llm import make_model
+from .llm import LLM_OUTPUT_RETRIES, OpenAISettings, make_model
 from .project import ProjectConfig
 from .prompts import SYSTEM_PROMPT, PromptBundle, build_prompt_bundle
 
@@ -33,11 +32,7 @@ __all__ = [
     "save_prompt_artifacts",
 ]
 
-DEFAULT_MODEL_NAME = "mistral-nemo"
-DEFAULT_OPENAI_BASE_URL = "http://localhost:11434/v1"
-DEFAULT_OPENAI_API_KEY = "no-key"
 LLM_TIMEOUT_SECONDS = 300.0
-LLM_OUTPUT_RETRIES = 2
 
 
 class BriefingError(Exception):
@@ -144,27 +139,6 @@ class BriefingContext:
     prompts: PromptBundle
 
 
-@dataclass(frozen=True)
-class OpenAISettings:
-    """Resolved OpenAI-compatible endpoint configuration."""
-
-    base_url: str
-    api_key: str
-
-    @classmethod
-    def from_env(cls) -> OpenAISettings:
-        """Read OpenAI-compatible configuration from the environment."""
-        base_url = os.environ.get("OPENAI_API_BASE") or os.environ.get("OPENAI_BASE_URL") or DEFAULT_OPENAI_BASE_URL
-        api_key = os.environ.get("OPENAI_API_KEY") or DEFAULT_OPENAI_API_KEY
-        return cls(base_url=base_url, api_key=api_key)
-
-    def configure_environment(self) -> None:
-        """Configure environment variables expected by OpenAI-compatible clients."""
-        os.environ["OPENAI_BASE_URL"] = self.base_url
-        os.environ["OPENAI_API_BASE"] = self.base_url
-        os.environ["OPENAI_API_KEY"] = self.api_key
-
-
 Reporter = Callable[[str], None] | None
 
 
@@ -265,7 +239,7 @@ def _create_agent(model_name: str, settings: OpenAISettings, *, temperature: flo
     """Instantiate the Pydantic AI agent for generating briefs."""
     settings.configure_environment()
     model_settings = ModelSettings(temperature=temperature)
-    model = make_model(model_name, model_settings=model_settings)
+    model = make_model(model_name, model_settings=model_settings, settings=settings)
     return Agent[None, SeoBrief](
         model=model,
         output_type=NativeOutput(SeoBrief, name="SEO Brief", strict=True),

@@ -7,16 +7,9 @@ from faker import Faker
 from pydantic import ValidationError
 from pydantic_ai import UnexpectedModelBehavior
 
-from scribae.brief import (
-    DEFAULT_OPENAI_API_KEY,
-    DEFAULT_OPENAI_BASE_URL,
-    BriefingContext,
-    BriefValidationError,
-    NoteDetails,
-    OpenAISettings,
-    SeoBrief,
-    generate_brief,
-)
+from scribae.brief import BriefingContext, BriefValidationError, NoteDetails, OpenAISettings, SeoBrief, generate_brief
+from scribae.llm import DEFAULT_API_KEY as DEFAULT_OPENAI_API_KEY
+from scribae.llm import DEFAULT_BASE_URL as DEFAULT_OPENAI_BASE_URL
 from scribae.project import default_project
 from scribae.prompts import PromptBundle
 

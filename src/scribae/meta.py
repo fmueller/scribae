@@ -15,13 +15,12 @@ from pydantic import BaseModel, ConfigDict, ValidationError, constr, field_valid
 from pydantic_ai import Agent, NativeOutput, UnexpectedModelBehavior
 from pydantic_ai.settings import ModelSettings
 
-from .brief import OpenAISettings, SeoBrief
-from .llm import make_model
+from .brief import SeoBrief
+from .llm import LLM_OUTPUT_RETRIES, OpenAISettings, make_model
 from .project import ProjectConfig
 
 DEFAULT_META_MODEL = "mistral-nemo"
 META_TIMEOUT_SECONDS = 300.0
-LLM_OUTPUT_RETRIES = 2
 
 Reporter = Callable[[str], None] | None
 
