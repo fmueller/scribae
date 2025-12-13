@@ -2,11 +2,14 @@ from __future__ import annotations
 
 import typer
 
+from . import brief
 from .brief_cli import brief_command
 from .meta_cli import meta_command
 from .write_cli import write_command
 
 app = typer.Typer(help="Scribae CLI — generate writing briefs from local notes.")
+
+__all__ = ["app", "main", "brief"]
 
 
 @app.callback(invoke_without_command=True)
