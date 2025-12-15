@@ -4,6 +4,7 @@ import typer
 
 from . import brief
 from .brief_cli import brief_command
+from .idea_cli import idea_command
 from .meta_cli import meta_command
 from .write_cli import write_command
 
@@ -19,6 +20,7 @@ def app_callback() -> None:
 app.command("brief", help="Create a structured creative brief from a Markdown note.")(brief_command)
 app.command("write", help="Generate article body from a note + SeoBrief.")(write_command)
 app.command("meta", help="Generate final article metadata/frontmatter.")(meta_command)
+app.command("idea", help="Brainstorm content ideas from a Markdown note.")(idea_command)
 
 
 def main() -> None:
