@@ -117,7 +117,7 @@ class LLMPostEditor:
         tone = cfg.tone
         return (
             "You are a post-editor improving a machine translation.\n"
-            f"Tone: register={tone.register}, voice={tone.voice}, audience={tone.audience}, humor={tone.humor}.\n"
+            f"Tone: register={tone.register}, audience={tone.audience}.\n"
             "Constraints:\n"
             + "\n".join(f"- {line}" for line in constraints)
             + "\nGlossary:\n"

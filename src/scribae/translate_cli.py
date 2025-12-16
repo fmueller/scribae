@@ -74,11 +74,6 @@ def translate(
             "otherwise neutral."
         ),
     ),
-    voice: str = typer.Option(  # noqa: B008
-        "thoughtful essay",
-        "--voice",
-        help="Narrative voice descriptor.",
-    ),
     audience: str | None = typer.Option(  # noqa: B008
         None,
         "--audience",
@@ -92,11 +87,6 @@ def translate(
         "--project",
         "-p",
         help="Project name used to load projects/<name>.yaml for translation defaults.",
-    ),
-    humor: str = typer.Option(  # noqa: B008
-        "none",
-        "--humor",
-        help="Humor level: none, low.",
     ),
     postedit: bool = typer.Option(  # noqa: B008
         True,
@@ -159,7 +149,7 @@ def translate(
 
     text = input_path.read_text(encoding="utf-8")
     glossary_map = _load_glossary(glossary)
-    tone_profile = ToneProfile(register=resolved_tone, voice=voice, audience=resolved_audience, humor=humor)
+    tone_profile = ToneProfile(register=resolved_tone, audience=resolved_audience)
 
     cfg = TranslationConfig(
         source_lang=resolved_src,
