@@ -121,8 +121,16 @@ def translate(
         "-d",
         help="Device for translation models: auto, cpu, cuda, or GPU index (e.g., 0).",
     ),
+    verbose: bool = typer.Option(  # noqa: B008
+        False,
+        "--verbose",
+        "-v",
+        help="Print progress information to stderr.",
+    ),
 ) -> None:
     """Translate a Markdown file using offline MT + local post-edit."""
+    reporter = (lambda msg: typer.secho(msg, err=True)) if verbose else None
+
     text = input_path.read_text(encoding="utf-8")
     glossary_map = _load_glossary(glossary)
     tone_profile = ToneProfile(register=tone, voice=voice, audience=audience, humor=humor)
@@ -152,6 +160,7 @@ def translate(
         postedit=posteditor,
         segmenter=segmenter,
         debug_callback=debug_records.append if debug else None,
+        reporter=reporter,
     )
 
     translated = pipeline.translate(text, cfg)
