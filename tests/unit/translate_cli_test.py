@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import re
 from typing import Any, cast
 
 import pytest
@@ -98,7 +99,9 @@ def test_translate_requires_src_without_project(
     )
 
     assert result.exit_code != 0
-    assert "--src is required unless --project provides a language" in result.stderr
+    # Rich/Click may add ANSI color codes; strip them before assertion
+    ansi_stripped = re.sub(r"\x1b\[[0-9;]*m", "", result.stderr)
+    assert "--src is required unless --project provides a language" in ansi_stripped
 
 
 def test_translate_uses_project_defaults(
