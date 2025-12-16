@@ -115,6 +115,12 @@ def translate(
         "--postedit-temperature",
         help="Temperature for post-edit LLM pass.",
     ),
+    device: str = typer.Option(  # noqa: B008
+        "auto",
+        "--device",
+        "-d",
+        help="Device for translation models: auto, cpu, cuda, or GPU index (e.g., 0).",
+    ),
 ) -> None:
     """Translate a Markdown file using offline MT + local post-edit."""
     text = input_path.read_text(encoding="utf-8")
@@ -132,7 +138,7 @@ def translate(
     )
 
     registry = ModelRegistry()
-    mt = MTTranslator(registry)
+    mt = MTTranslator(registry, device=device)
     posteditor = LLMPostEditor(
         model_name=postedit_model,
         temperature=postedit_temperature,

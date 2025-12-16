@@ -10,7 +10,7 @@ from .model_registry import ModelRegistry, RouteStep
 class MTTranslator:
     """Offline machine translation wrapper around Transformers pipelines."""
 
-    def __init__(self, registry: ModelRegistry, device: str = "cpu") -> None:
+    def __init__(self, registry: ModelRegistry, device: str | None = None) -> None:
         self.registry = registry
         self.device = device
         self._pipelines: dict[str, Pipeline] = {}
@@ -32,7 +32,14 @@ class MTTranslator:
 
     def _pipeline_for(self, model_id: str) -> Pipeline:
         if model_id not in self._pipelines:
-            self._pipelines[model_id] = pipeline("translation", model=model_id, device=self.device)
+            if self.device is None or self.device == "auto":
+                self._pipelines[model_id] = pipeline(
+                    "translation", model=model_id, device_map="auto"
+                )
+            else:
+                self._pipelines[model_id] = pipeline(
+                    "translation", model=model_id, device=self.device
+                )
         return self._pipelines[model_id]
 
     def _run_step(self, step: RouteStep, text: str) -> str:
