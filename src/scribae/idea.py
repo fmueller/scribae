@@ -167,7 +167,7 @@ def generate_ideas(
 def render_json(result: IdeaList) -> str:
     """Return the ideas as a JSON string."""
 
-    return json.dumps([idea.model_dump() for idea in result.ideas], indent=2, ensure_ascii=False)
+    return json.dumps(result.model_dump(), indent=2, ensure_ascii=False)
 
 
 def save_prompt_artifacts(
