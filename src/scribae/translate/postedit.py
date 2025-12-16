@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
@@ -77,7 +77,7 @@ class LLMPostEditor:
                 f"post-edit prompt length {len(prompt)} exceeds limit of {self.max_chars} characters"
             )
         try:
-            result = self._invoke(prompt)
+            result = self._invoke(prompt, protected.placeholders.keys(), mt_draft)
         except PostEditAborted:
             raise
         except UnexpectedModelBehavior as exc:
@@ -90,13 +90,18 @@ class LLMPostEditor:
         self._validate_output(enforced, protected.placeholders.keys(), cfg.glossary)
         return enforced
 
-    def _invoke(self, prompt: str) -> str:
+    def _invoke(self, prompt: str, placeholders: Iterable[str], mt_draft: str) -> str:
         agent = self.agent
         if agent is None:
             return prompt
 
+        output_validator = self._build_output_validator(placeholders, mt_draft)
+
         async def _call() -> str:
-            run_coro = agent.run(prompt)
+            run_coro = agent.run(
+                prompt,
+                output_type=NativeOutput(output_validator, name="translation", strict=True),
+            )
             try:
                 run = (
                     await asyncio.wait_for(run_coro, timeout=self.timeout_seconds)
@@ -114,6 +119,57 @@ class LLMPostEditor:
             return str(output)
 
         return asyncio.run(_call())
+
+    def _build_output_validator(self, placeholders: Iterable[str], mt_draft: str) -> Callable[[str], str]:
+        placeholder_list = list(placeholders)
+        mt_lines = mt_draft.splitlines()
+
+        def _validator(text: str) -> str:
+            missing = [token for token in placeholder_list if token not in text]
+            if missing:
+                raise UnexpectedModelBehavior(f"missing placeholders: {', '.join(missing)}")
+
+            if not mt_lines:
+                return text
+
+            candidate_lines = text.splitlines()
+            drift_ratio = abs(len(mt_lines) - len(candidate_lines)) / len(mt_lines)
+            if drift_ratio > 0.5:
+                raise UnexpectedModelBehavior(
+                    f"post-edit line count drifted by {drift_ratio:.2f} (MT lines={len(mt_lines)}, "
+                    f"post-edit={len(candidate_lines)})"
+                )
+
+            markers_missing: list[str] = []
+            for mt_line, candidate_line in zip(mt_lines, candidate_lines, strict=False):
+                marker = self._leading_markdown_marker(mt_line)
+                if marker and not candidate_line.startswith(marker):
+                    markers_missing.append(marker.strip())
+
+            if markers_missing:
+                unique_markers = sorted(set(markers_missing))
+                raise UnexpectedModelBehavior(
+                    "post-edit removed required Markdown prefixes: " + ", ".join(unique_markers)
+                )
+
+            return text
+
+        return _validator
+
+    def _leading_markdown_marker(self, line: str) -> str:
+        """Return the Markdown prefix (blockquote, list, heading) if present."""
+        import re
+
+        patterns = [
+            r"^((?:>\s*)+)",  # blockquotes with nesting
+            r"^(\s*(?:[-*+]|\d+\.)\s+)",  # list markers
+            r"^(#+\s+)",  # headings
+        ]
+        for pattern in patterns:
+            match = re.match(pattern, line)
+            if match:
+                return match.group(1)
+        return ""
 
     def _build_prompt(
         self,

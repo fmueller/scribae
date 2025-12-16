@@ -6,7 +6,7 @@ import asyncio
 from typing import cast
 
 import pytest
-from pydantic_ai import Agent
+from pydantic_ai import Agent, UnexpectedModelBehavior
 
 from scribae.translate.markdown_segmenter import ProtectedText
 from scribae.translate.pipeline import ToneProfile, TranslationConfig
@@ -170,7 +170,7 @@ class TestPostEditGuards:
 
     def test_prompt_too_long_aborts_postedit(self) -> None:
         class DummyAgent:
-            async def run(self, prompt: str) -> object:  # pragma: no cover - should be skipped by guard
+            async def run(self, prompt: str, **_: object) -> object:  # pragma: no cover - should be skipped by guard
                 return type("Run", (), {"output": "ok"})()
 
         posteditor = LLMPostEditor(agent=cast(Agent[None, str], DummyAgent()), max_chars=10, timeout_seconds=1)
@@ -180,7 +180,7 @@ class TestPostEditGuards:
 
     def test_timeout_aborts_postedit(self) -> None:
         class SlowAgent:
-            async def run(self, prompt: str) -> object:
+            async def run(self, prompt: str, **_: object) -> object:
                 await asyncio.sleep(0.05)
                 return type("Run", (), {"output": "ok"})()
 
@@ -193,7 +193,7 @@ class TestPostEditGuards:
         recorded: dict[str, str] = {}
 
         class RecordingAgent:
-            async def run(self, prompt: str) -> object:
+            async def run(self, prompt: str, **_: object) -> object:
                 recorded["prompt"] = prompt
                 return type("Run", (), {"output": "ok"})()
 
@@ -210,3 +210,35 @@ class TestPostEditGuards:
         prompt = recorded["prompt"]
         assert "X" * 4_501 not in prompt
         assert "Y" * 4_501 not in prompt
+
+
+class TestPostEditOutputValidator:
+    def setup_method(self) -> None:
+        self.posteditor = LLMPostEditor(create_agent=False)
+
+    def test_rejects_missing_placeholder(self) -> None:
+        validator = self.posteditor._build_output_validator(["__P1__"], mt_draft="> Quote")
+
+        with pytest.raises(UnexpectedModelBehavior):
+            validator("> Quote without token")
+
+    def test_rejects_large_line_drift(self) -> None:
+        validator = self.posteditor._build_output_validator([], mt_draft="Line 1\nLine 2\nLine 3")
+
+        with pytest.raises(UnexpectedModelBehavior):
+            validator("Only one line")
+
+    def test_rejects_removed_markdown_markers(self) -> None:
+        mt_draft = "> Quoted line\n- list item"
+        validator = self.posteditor._build_output_validator([], mt_draft=mt_draft)
+
+        with pytest.raises(UnexpectedModelBehavior):
+            validator("Quoted line\nlist item")
+
+    def test_accepts_valid_output(self) -> None:
+        mt_draft = "> Quoted line\n- list item"
+        validator = self.posteditor._build_output_validator(["__P1__"], mt_draft=mt_draft)
+
+        result = validator("> Quoted line with __P1__\n- list item")
+
+        assert result.startswith("> Quoted line with __P1__")
