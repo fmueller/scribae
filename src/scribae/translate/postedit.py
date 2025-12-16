@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import asyncio
+import importlib
+import os
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Literal, cast
 
 from pydantic_ai import Agent, NativeOutput, UnexpectedModelBehavior
 from pydantic_ai.settings import ModelSettings
@@ -46,10 +48,12 @@ class LLMPostEditor:
         create_agent: bool = True,
         max_chars: int | None = 4_000,
         timeout_seconds: float | None = 60.0,
+        language_detector: Callable[[str], str] | None = None,
     ) -> None:
         self.agent: Agent[None, str] | None = None
         self.max_chars = max_chars
         self.timeout_seconds = timeout_seconds
+        self._language_detector = language_detector
         if agent is not None:
             self.agent = agent
         elif create_agent:
@@ -77,7 +81,7 @@ class LLMPostEditor:
                 f"post-edit prompt length {len(prompt)} exceeds limit of {self.max_chars} characters"
             )
         try:
-            result = self._invoke(prompt, protected.placeholders.keys(), mt_draft)
+            result = self._invoke(prompt, protected.placeholders.keys(), mt_draft, expected_lang=cfg.target_lang)
         except PostEditAborted:
             raise
         except UnexpectedModelBehavior as exc:
@@ -90,12 +94,12 @@ class LLMPostEditor:
         self._validate_output(enforced, protected.placeholders.keys(), cfg.glossary)
         return enforced
 
-    def _invoke(self, prompt: str, placeholders: Iterable[str], mt_draft: str) -> str:
+    def _invoke(self, prompt: str, placeholders: Iterable[str], mt_draft: str, *, expected_lang: str) -> str:
         agent = self.agent
         if agent is None:
             return prompt
 
-        output_validator = self._build_output_validator(placeholders, mt_draft)
+        output_validator = self._build_output_validator(placeholders, mt_draft, expected_lang)
 
         async def _call() -> str:
             run_coro = agent.run(
@@ -120,7 +124,12 @@ class LLMPostEditor:
 
         return asyncio.run(_call())
 
-    def _build_output_validator(self, placeholders: Iterable[str], mt_draft: str) -> Callable[[str], str]:
+    def _build_output_validator(
+        self,
+        placeholders: Iterable[str],
+        mt_draft: str,
+        expected_lang: str,
+    ) -> Callable[[str], str]:
         placeholder_list = list(placeholders)
         mt_lines = mt_draft.splitlines()
 
@@ -152,9 +161,114 @@ class LLMPostEditor:
                     "post-edit removed required Markdown prefixes: " + ", ".join(unique_markers)
                 )
 
+            detected_lang = self._detect_language(text)
+            if not self._lang_matches(detected_lang, expected_lang):
+                raise UnexpectedModelBehavior(
+                    f"post-edit output language '{detected_lang}' does not match expected '{expected_lang}'"
+                )
+
             return text
 
         return _validator
+
+    def _lang_matches(self, detected: str, expected: str) -> bool:
+        return self._normalize_lang(detected) == self._normalize_lang(expected)
+
+    def _normalize_lang(self, lang: str) -> str:
+        return lang.split("-")[0].strip().lower()
+
+    def _detect_language(self, text: str) -> str:
+        detector = self._get_language_detector()
+        sample = text[:5_000]
+        try:
+            return detector(sample)
+        except FileNotFoundError as exc:
+            raise PostEditAborted(f"Language model missing for detection: {exc}") from exc
+        except Exception as exc:
+            raise PostEditAborted(f"Language detection failed: {exc}") from exc
+
+    def _get_language_detector(self) -> Callable[[str], str]:
+        if self._language_detector is None:
+            try:
+                self._language_detector = self._create_language_detector()
+            except Exception as exc:  # pragma: no cover - defensive: handled in _detect_language
+                raise PostEditAborted(f"Language detection unavailable: {exc}") from exc
+        return self._language_detector
+
+    def _create_language_detector(self) -> Callable[[str], str]:
+        fast_langdetect = importlib.import_module("fast_langdetect")
+        config_kwargs: dict[str, Any] = {}
+        env_model_path = os.getenv("FASTTEXT_LID_MODEL")
+        if env_model_path:
+            config_kwargs["custom_model_path"] = env_model_path
+
+        config = fast_langdetect.LangDetectConfig(**config_kwargs) if config_kwargs else None
+        detector = fast_langdetect.LangDetector(config) if config else fast_langdetect.LangDetector()
+
+        def _detect(text: str) -> str:
+            results = self._detect_labels(detector, text, model="auto", k=1, threshold=0.0)
+            if not results:
+                raise UnexpectedModelBehavior("language detector returned no labels")
+            lang = results[0].get("lang")
+            if not isinstance(lang, str) or not lang:
+                raise UnexpectedModelBehavior("language detector returned invalid language label")
+            return self._normalize_lang(lang)
+
+        return _detect
+
+    def _detect_labels(
+        self,
+        detector: Any,
+        text: str,
+        *,
+        model: Literal["lite", "full", "auto"],
+        k: int,
+        threshold: float,
+    ) -> list[dict[str, object]]:
+        try:
+            return cast(list[dict[str, object]], detector.detect(text, model=model, k=k, threshold=threshold))
+        except ValueError as exc:
+            message = str(exc)
+            copy_error = "Unable to avoid copy while creating an array as requested"
+            if copy_error not in message:
+                raise
+            return self._detect_with_fasttext_copy_fix(detector, text, model=model, k=k, threshold=threshold)
+
+    def _detect_with_fasttext_copy_fix(
+        self,
+        detector: Any,
+        text: str,
+        *,
+        model: Literal["lite", "full", "auto"],
+        k: int,
+        threshold: float,
+    ) -> list[dict[str, object]]:
+        if model not in {"lite", "full", "auto"}:
+            raise UnexpectedModelBehavior(f"Invalid language detection model '{model}'")
+
+        if model == "lite":
+            ft_model = detector._get_model(low_memory=True, fallback_on_memory_error=False)
+        elif model == "full":
+            ft_model = detector._get_model(low_memory=False, fallback_on_memory_error=False)
+        else:
+            ft_model = detector._get_model(low_memory=False, fallback_on_memory_error=True)
+
+        processed = detector._preprocess_text(text)
+        normalized = detector._normalize_text(processed, detector.config.normalize_input)
+        if "\n" in normalized:
+            raise UnexpectedModelBehavior("language detection input contains newline characters")
+
+        raw_predictor = getattr(ft_model, "f", None)
+        if raw_predictor is None or not hasattr(raw_predictor, "predict"):
+            raise UnexpectedModelBehavior("fasttext model missing raw predictor for copy-safe language detection")
+
+        predictions = cast(list[tuple[float, str]], raw_predictor.predict(f"{normalized}\n", k, threshold, "strict"))
+        if not predictions:
+            return []
+
+        scored = [(str(label).replace("__label__", ""), min(float(score), 1.0)) for score, label in predictions]
+        scored.sort(key=lambda item: item[1], reverse=True)
+        return [{"lang": label, "score": score} for label, score in scored]
 
     def _leading_markdown_marker(self, line: str) -> str:
         """Return the Markdown prefix (blockquote, list, heading) if present."""

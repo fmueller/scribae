@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import asyncio
-from typing import cast
+from pathlib import Path
+from typing import Any, cast
 
 import pytest
 from pydantic_ai import Agent, UnexpectedModelBehavior
@@ -214,31 +215,121 @@ class TestPostEditGuards:
 
 class TestPostEditOutputValidator:
     def setup_method(self) -> None:
-        self.posteditor = LLMPostEditor(create_agent=False)
+        self.posteditor = LLMPostEditor(create_agent=False, language_detector=lambda _text: "de")
 
     def test_rejects_missing_placeholder(self) -> None:
-        validator = self.posteditor._build_output_validator(["__P1__"], mt_draft="> Quote")
+        validator = self.posteditor._build_output_validator(["__P1__"], mt_draft="> Quote", expected_lang="de")
 
         with pytest.raises(UnexpectedModelBehavior):
             validator("> Quote without token")
 
     def test_rejects_large_line_drift(self) -> None:
-        validator = self.posteditor._build_output_validator([], mt_draft="Line 1\nLine 2\nLine 3")
+        validator = self.posteditor._build_output_validator([], mt_draft="Line 1\nLine 2\nLine 3", expected_lang="de")
 
         with pytest.raises(UnexpectedModelBehavior):
             validator("Only one line")
 
     def test_rejects_removed_markdown_markers(self) -> None:
         mt_draft = "> Quoted line\n- list item"
-        validator = self.posteditor._build_output_validator([], mt_draft=mt_draft)
+        validator = self.posteditor._build_output_validator([], mt_draft=mt_draft, expected_lang="de")
 
         with pytest.raises(UnexpectedModelBehavior):
             validator("Quoted line\nlist item")
 
     def test_accepts_valid_output(self) -> None:
         mt_draft = "> Quoted line\n- list item"
-        validator = self.posteditor._build_output_validator(["__P1__"], mt_draft=mt_draft)
+        validator = self.posteditor._build_output_validator(["__P1__"], mt_draft=mt_draft, expected_lang="de")
 
         result = validator("> Quoted line with __P1__\n- list item")
 
         assert result.startswith("> Quoted line with __P1__")
+
+    def test_rejects_unexpected_language(self) -> None:
+        posteditor = LLMPostEditor(create_agent=False, language_detector=lambda _text: "fr")
+        validator = posteditor._build_output_validator([], mt_draft="Text", expected_lang="de")
+
+        with pytest.raises(UnexpectedModelBehavior):
+            validator("Bonjour tout le monde")
+
+    def test_language_detection_uses_fast_langdetect(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        model_path = tmp_path / "lid.176.bin"
+        posteditor = LLMPostEditor(create_agent=False, language_detector=None)
+        monkeypatch.setenv("FASTTEXT_LID_MODEL", str(model_path))
+
+        captured: dict[str, Any] = {}
+
+        class FakeConfig:
+            def __init__(self, **kwargs: object) -> None:
+                captured["config_kwargs"] = kwargs
+
+        class FakeDetector:
+            def __init__(self, config: FakeConfig | None = None) -> None:
+                captured["config"] = config
+
+            def detect(
+                self,
+                text: str,
+                model: str = "auto",
+                k: int = 1,
+                threshold: float = 0.0,
+            ) -> list[dict[str, object]]:
+                captured["detect_args"] = (text, model, k, threshold)
+                return [{"lang": "DE", "score": 0.9}]
+
+        class FakeModule:
+            LangDetectConfig = FakeConfig
+            LangDetector = FakeDetector
+
+        fake_module = FakeModule()
+        monkeypatch.setattr("scribae.translate.postedit.importlib.import_module", lambda name: fake_module)
+
+        detector = posteditor._create_language_detector()
+        lang = detector("Hallo Welt")
+
+        assert lang == "de"
+        assert captured["config_kwargs"] == {"custom_model_path": str(model_path)}
+        assert captured["detect_args"][1:] == ("auto", 1, 0.0)
+
+    def test_language_detection_falls_back_on_numpy_copy_error(self) -> None:
+        posteditor = LLMPostEditor(create_agent=False, language_detector=None)
+
+        class FakeDetector:
+            config = type("Config", (), {"normalize_input": True})()
+
+            def __init__(self) -> None:
+                self.called = {"detect": 0, "predict": 0}
+
+            def detect(
+                self, text: str, model: str = "auto", k: int = 1, threshold: float = 0.0
+            ) -> list[dict[str, object]]:
+                self.called["detect"] += 1
+                raise ValueError("Unable to avoid copy while creating an array as requested.")
+
+            def _get_model(self, low_memory: bool, fallback_on_memory_error: bool) -> Any:
+                self.called["predict"] += 1
+
+                class RawPredictor:
+                    def __init__(self) -> None:
+                        class F:
+                            def predict(
+                                self_inner, text: str, k: int, threshold: float, mode: str
+                            ) -> list[tuple[float, str]]:
+                                return [(0.9, "__label__EN")]
+
+                        self.f = F()
+
+                return RawPredictor()
+
+            def _preprocess_text(self, text: str) -> str:
+                return text
+
+            def _normalize_text(self, text: str, normalize_input: bool) -> str:
+                return text
+
+        detector = FakeDetector()
+        results = posteditor._detect_labels(detector, "Hello", model="auto", k=1, threshold=0.0)
+
+        assert results[0]["lang"] == "EN"
+        assert results[0]["score"] == 0.9
+        assert detector.called["detect"] == 1
+        assert detector.called["predict"] == 1
