@@ -105,6 +105,16 @@ def translate(
         "--protect",
         help="Additional regex patterns to protect.",
     ),
+    postedit_model: str = typer.Option(  # noqa: B008
+        "mistral-nemo",
+        "--postedit-model",
+        help="Model name for post-edit LLM pass.",
+    ),
+    postedit_temperature: float = typer.Option(  # noqa: B008
+        0.2,
+        "--postedit-temperature",
+        help="Temperature for post-edit LLM pass.",
+    ),
 ) -> None:
     """Translate a Markdown file using offline MT + local post-edit."""
     text = input_path.read_text(encoding="utf-8")
@@ -123,7 +133,11 @@ def translate(
 
     registry = ModelRegistry()
     mt = MTTranslator(registry)
-    posteditor = LLMPostEditor(create_agent=postedit)
+    posteditor = LLMPostEditor(
+        model_name=postedit_model,
+        temperature=postedit_temperature,
+        create_agent=postedit,
+    )
     debug_records: list[dict[str, Any]] = []
     segmenter = MarkdownSegmenter(protected_patterns=protect)
     pipeline = TranslationPipeline(
