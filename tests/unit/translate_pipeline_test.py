@@ -4,7 +4,7 @@ from scribae.translate.markdown_segmenter import MarkdownSegmenter, ProtectedTex
 from scribae.translate.model_registry import ModelRegistry, ModelSpec
 from scribae.translate.mt import MTTranslator
 from scribae.translate.pipeline import ToneProfile, TranslationConfig, TranslationPipeline
-from scribae.translate.postedit import LLMPostEditor, PostEditValidationError
+from scribae.translate.postedit import LLMPostEditor, PostEditAborted, PostEditValidationError
 
 
 class StubMT(MTTranslator):
@@ -118,3 +118,48 @@ def test_postedit_fallback_returns_mt_draft_when_validation_fails() -> None:
 
     result = pipeline.translate("Simple text", cfg)
     assert result.endswith("::mt")
+
+
+def test_postedit_abort_skips_strict_retry() -> None:
+    class AbortPostEditor(LLMPostEditor):
+        def __init__(self) -> None:
+            super().__init__(create_agent=False)
+            self.calls = 0
+
+        def post_edit(
+            self,
+            source_text: str,
+            mt_draft: str,
+            cfg: TranslationConfig,
+            protected: ProtectedText,
+            *,
+            strict: bool = False,
+        ) -> str:
+            self.calls += 1
+            raise PostEditAborted("prompt too large")
+
+    class EchoMT(MTTranslator):
+        def __init__(self, registry: ModelRegistry) -> None:
+            super().__init__(registry=registry)
+
+        def translate_block(
+            self,
+            text: str,
+            src_lang: str,
+            tgt_lang: str,
+            *,
+            allow_pivot: bool = True,
+            backend: str = "marian_then_nllb",
+        ) -> str:
+            return text + " ::mt"
+
+    registry = ModelRegistry(specs=[])
+    mt = EchoMT(registry)
+    posteditor = AbortPostEditor()
+    pipeline = TranslationPipeline(registry=registry, mt=mt, postedit=posteditor, segmenter=MarkdownSegmenter())
+    cfg = TranslationConfig(source_lang="en", target_lang="de", tone=ToneProfile())
+
+    result = pipeline.translate("Simple text", cfg)
+
+    assert result.endswith("::mt")
+    assert posteditor.calls == 1

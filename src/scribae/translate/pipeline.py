@@ -7,7 +7,7 @@ from typing import Any
 from .markdown_segmenter import MarkdownSegmenter, ProtectedText, TextBlock
 from .model_registry import ModelRegistry
 from .mt import MTTranslator
-from .postedit import LLMPostEditor, PostEditValidationError
+from .postedit import LLMPostEditor, PostEditAborted, PostEditValidationError
 
 DebugCallback = Callable[[dict[str, Any]], None] | None
 Reporter = Callable[[str], None] | None
@@ -159,6 +159,15 @@ class TranslationPipeline:
             edited = self.postedit.post_edit(source_text, mt_draft, cfg, protected, strict=False)
             self._report("  Post-edit completed successfully")
             return edited
+        except PostEditAborted as exc:
+            reason = getattr(exc, "reason", str(exc))
+            self._report(f"  Post-edit skipped: {reason}")
+            self._debug(
+                stage="postedit_aborted",
+                block_index=block_index,
+                message=str(reason),
+            )
+            return mt_draft
         except PostEditValidationError:
             self._report("  Non-strict post-edit failed, retrying in strict mode...")
 
@@ -166,6 +175,15 @@ class TranslationPipeline:
             edited = self.postedit.post_edit(source_text, mt_draft, cfg, protected, strict=True)
             self._report("  Strict post-edit completed successfully")
             return edited
+        except PostEditAborted as exc:
+            reason = getattr(exc, "reason", str(exc))
+            self._report(f"  Post-edit unavailable: {reason}")
+            self._debug(
+                stage="postedit_aborted",
+                block_index=block_index,
+                message=str(reason),
+            )
+            return mt_draft
         except PostEditValidationError:
             self._report("  Post-edit failed twice, falling back to MT draft")
             self._debug(

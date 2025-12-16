@@ -113,6 +113,11 @@ def translate(
         "--postedit-model",
         help="Model name for post-edit LLM pass.",
     ),
+    postedit_max_chars: int | None = typer.Option(  # noqa: B008
+        4_000,
+        "--postedit-max-chars",
+        help="Maximum characters allowed in post-edit prompt (None disables limit).",
+    ),
     postedit_temperature: float = typer.Option(  # noqa: B008
         0.2,
         "--postedit-temperature",
@@ -167,6 +172,7 @@ def translate(
         model_name=postedit_model,
         temperature=postedit_temperature,
         create_agent=postedit,
+        max_chars=postedit_max_chars,
     )
     debug_records: list[dict[str, Any]] = []
     segmenter = MarkdownSegmenter(protected_patterns=protect)

@@ -2,7 +2,15 @@
 
 from __future__ import annotations
 
-from scribae.translate.postedit import LLMPostEditor
+import asyncio
+from typing import cast
+
+import pytest
+from pydantic_ai import Agent
+
+from scribae.translate.markdown_segmenter import ProtectedText
+from scribae.translate.pipeline import ToneProfile, TranslationConfig
+from scribae.translate.postedit import LLMPostEditor, PostEditAborted
 
 
 class TestRestoreMarkdownStructure:
@@ -154,3 +162,51 @@ class TestRestoreMarkdownStructure:
 
         # The blockquote prefix should be restored
         assert result == "> - List in quote"
+
+
+class TestPostEditGuards:
+    def setup_method(self) -> None:
+        self.cfg = TranslationConfig(source_lang="en", target_lang="de", tone=ToneProfile())
+
+    def test_prompt_too_long_aborts_postedit(self) -> None:
+        class DummyAgent:
+            async def run(self, prompt: str) -> object:  # pragma: no cover - should be skipped by guard
+                return type("Run", (), {"output": "ok"})()
+
+        posteditor = LLMPostEditor(agent=cast(Agent[None, str], DummyAgent()), max_chars=10, timeout_seconds=1)
+
+        with pytest.raises(PostEditAborted):
+            posteditor.post_edit("source", "mt draft", self.cfg, ProtectedText("mt draft", {}))
+
+    def test_timeout_aborts_postedit(self) -> None:
+        class SlowAgent:
+            async def run(self, prompt: str) -> object:
+                await asyncio.sleep(0.05)
+                return type("Run", (), {"output": "ok"})()
+
+        posteditor = LLMPostEditor(agent=cast(Agent[None, str], SlowAgent()), timeout_seconds=0.01, max_chars=1_000_000)
+
+        with pytest.raises(PostEditAborted):
+            posteditor.post_edit("source", "mt draft", self.cfg, ProtectedText("mt draft", {}))
+
+    def test_inputs_trimmed_to_budget(self) -> None:
+        recorded: dict[str, str] = {}
+
+        class RecordingAgent:
+            async def run(self, prompt: str) -> object:
+                recorded["prompt"] = prompt
+                return type("Run", (), {"output": "ok"})()
+
+        posteditor = LLMPostEditor(
+            agent=cast(Agent[None, str], RecordingAgent()),
+            max_chars=10_000,
+            timeout_seconds=1,
+        )
+        long_source = "X" * 6_000
+        long_mt = "Y" * 6_000
+
+        posteditor.post_edit(long_source, long_mt, self.cfg, ProtectedText(long_mt, {}))
+
+        prompt = recorded["prompt"]
+        assert "X" * 4_501 not in prompt
+        assert "Y" * 4_501 not in prompt

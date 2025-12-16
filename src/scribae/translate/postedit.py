@@ -20,6 +20,14 @@ class PostEditValidationError(ValueError):
     """Raised when a post-edit output violates constraints."""
 
 
+class PostEditAborted(PostEditValidationError):
+    """Raised when post-editing cannot proceed (e.g., prompt too large or timed out)."""
+
+    def __init__(self, reason: str) -> None:
+        super().__init__(reason)
+        self.reason = reason
+
+
 @dataclass(frozen=True)
 class PostEditResult:
     text: str
@@ -36,8 +44,12 @@ class LLMPostEditor:
         model_name: str = "mistral-nemo",
         temperature: float = 0.2,
         create_agent: bool = True,
+        max_chars: int | None = 4_000,
+        timeout_seconds: float | None = 60.0,
     ) -> None:
         self.agent: Agent[None, str] | None = None
+        self.max_chars = max_chars
+        self.timeout_seconds = timeout_seconds
         if agent is not None:
             self.agent = agent
         elif create_agent:
@@ -58,9 +70,16 @@ class LLMPostEditor:
             self._validate_output(enforced, protected.placeholders.keys(), cfg.glossary)
             return enforced
 
-        prompt = self._build_prompt(source_text, mt_draft, cfg, protected.placeholders.keys(), strict=strict)
+        trimmed_source, trimmed_mt = self._trim_inputs(source_text, mt_draft)
+        prompt = self._build_prompt(trimmed_source, trimmed_mt, cfg, protected.placeholders.keys(), strict=strict)
+        if self.max_chars is not None and len(prompt) > self.max_chars:
+            raise PostEditAborted(
+                f"post-edit prompt length {len(prompt)} exceeds limit of {self.max_chars} characters"
+            )
         try:
             result = self._invoke(prompt)
+        except PostEditAborted:
+            raise
         except UnexpectedModelBehavior as exc:
             raise PostEditValidationError("LLM output failed validation") from exc
 
@@ -77,7 +96,16 @@ class LLMPostEditor:
             return prompt
 
         async def _call() -> str:
-            run = await agent.run(prompt)
+            run_coro = agent.run(prompt)
+            try:
+                run = (
+                    await asyncio.wait_for(run_coro, timeout=self.timeout_seconds)
+                    if self.timeout_seconds
+                    else await run_coro
+                )
+            except TimeoutError as exc:
+                timeout = f"{self.timeout_seconds:.0f}s" if self.timeout_seconds else "configured timeout"
+                raise PostEditAborted(f"post-edit call exceeded {timeout}") from exc
             output = getattr(run, "output", None)
             if isinstance(output, str):
                 return output
@@ -230,5 +258,15 @@ class LLMPostEditor:
             output_retries=LLM_OUTPUT_RETRIES,
         )
 
+    def _trim_inputs(self, source_text: str, mt_draft: str) -> tuple[str, str]:
+        """Trim inputs to reduce prompt size when a max_chars budget is set."""
+        if self.max_chars is None:
+            return source_text, mt_draft
+        budget = int(self.max_chars * 0.45)
+        budget = max(budget, 1)
+        trimmed_source = source_text[:budget]
+        trimmed_mt = mt_draft[:budget]
+        return trimmed_source, trimmed_mt
 
-__all__ = ["LLMPostEditor", "PostEditValidationError", "PostEditResult"]
+
+__all__ = ["LLMPostEditor", "PostEditAborted", "PostEditValidationError", "PostEditResult"]
