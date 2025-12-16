@@ -64,6 +64,9 @@ class LLMPostEditor:
         except UnexpectedModelBehavior as exc:
             raise PostEditValidationError("LLM output failed validation") from exc
 
+        # Restore Markdown structure that may have been corrupted by the LLM
+        result = self._restore_markdown_structure(mt_draft, result)
+
         enforced = self._apply_glossary(result, cfg.glossary)
         self._validate_output(enforced, protected.placeholders.keys(), cfg.glossary)
         return enforced
@@ -95,7 +98,12 @@ class LLMPostEditor:
     ) -> str:
         constraints = [
             "Preserve meaning exactly; do not add or remove claims.",
-            "Keep Markdown structure, spacing, and list markers unchanged.",
+            "Output must have IDENTICAL Markdown structure to the MT draft.",
+            "Blockquotes MUST retain the '> ' prefix on each line (including nested '> > ').",
+            "List markers (-, *, +, 1., 2., etc.) MUST stay unchanged at the start of lines.",
+            "Headings (##, ###, etc.) MUST remain at their exact level.",
+            "Bold (**text**) and italic (*text*) markers MUST be preserved exactly.",
+            "Empty lines and spacing MUST match the MT draft structure exactly.",
             "Do not alter protected tokens: " + ", ".join(placeholders),
             "Preserve URLs, IDs, file names, and numeric values.",
             "Replace idioms with natural equivalents; otherwise paraphrase lightly.",
@@ -120,6 +128,71 @@ class LLMPostEditor:
             f"{mt_draft}\n\n"
             "Return only the corrected translation."
         )
+
+    def _restore_markdown_structure(self, mt_draft: str, edited: str) -> str:
+        """Restore Markdown structure (blockquotes, list markers) if stripped by LLM.
+
+        Compares line-by-line between the MT draft and edited output, restoring
+        blockquote prefixes and list markers if they were stripped.
+
+        Args:
+            mt_draft: The original MT draft with correct Markdown structure.
+            edited: The LLM-edited output that may have lost Markdown formatting.
+
+        Returns:
+            The edited text with Markdown structure restored from mt_draft.
+        """
+        import re
+
+        mt_lines = mt_draft.splitlines()
+        edited_lines = edited.splitlines()
+
+        # Skip restoration if line counts differ significantly (>33% difference)
+        if len(mt_lines) == 0:
+            return edited
+        line_diff_ratio = abs(len(mt_lines) - len(edited_lines)) / len(mt_lines)
+        if line_diff_ratio > 0.33:
+            return edited
+
+        # Patterns for Markdown prefixes we want to restore
+        # Blockquote pattern: one or more '>' possibly with spaces
+        blockquote_pattern = re.compile(r'^((?:>\s*)+)')
+        # List marker pattern: optional whitespace + marker + space
+        # Supports: -, *, +, and numbered lists like 1., 2., 10.
+        list_marker_pattern = re.compile(r'^(\s*(?:[-*+]|\d+\.)\s+)')
+
+        restored_lines = []
+        for i, edited_line in enumerate(edited_lines):
+            if i >= len(mt_lines):
+                # More edited lines than MT lines - keep as-is
+                restored_lines.append(edited_line)
+                continue
+
+            mt_line = mt_lines[i]
+            restored_line = edited_line
+
+            # Check for blockquote prefix in MT draft
+            mt_blockquote = blockquote_pattern.match(mt_line)
+            edited_blockquote = blockquote_pattern.match(edited_line)
+
+            if mt_blockquote and not edited_blockquote:
+                # MT has blockquote prefix but edited doesn't - restore it
+                prefix = mt_blockquote.group(1)
+                restored_line = prefix + edited_line
+
+            # Check for list marker in MT draft (only if not a blockquote line)
+            if not mt_blockquote:
+                mt_list = list_marker_pattern.match(mt_line)
+                edited_list = list_marker_pattern.match(edited_line)
+
+                if mt_list and not edited_list:
+                    # MT has list marker but edited doesn't - restore it
+                    prefix = mt_list.group(1)
+                    restored_line = prefix + edited_line
+
+            restored_lines.append(restored_line)
+
+        return '\n'.join(restored_lines)
 
     def _apply_glossary(self, text: str, glossary: dict[str, str]) -> str:
         translation = text
