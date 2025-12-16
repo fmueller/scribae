@@ -1,10 +1,11 @@
 from __future__ import annotations
 
-from typing import Any
-
-from transformers import Pipeline, pipeline
+from typing import TYPE_CHECKING, Any
 
 from .model_registry import ModelRegistry, RouteStep
+
+if TYPE_CHECKING:
+    from transformers import Pipeline
 
 
 class MTTranslator:
@@ -45,6 +46,9 @@ class MTTranslator:
         return current
 
     def _pipeline_for(self, model_id: str) -> Pipeline:
+        # Import transformers lazily so CLI startup stays fast when the translation command isn't invoked.
+        from transformers import pipeline
+
         if model_id not in self._pipelines:
             if self.device is None or self.device == "auto":
                 import torch
