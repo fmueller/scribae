@@ -8,6 +8,7 @@ from typing import Any
 import typer
 import yaml
 
+from scribae.project import load_project
 from scribae.translate import (
     LLMPostEditor,
     MarkdownSegmenter,
@@ -36,10 +37,10 @@ def _debug_path(base: Path) -> Path:
 
 @translate_app.command()
 def translate(
-    src: str = typer.Option(  # noqa: B008
-        ...,
+    src: str | None = typer.Option(  # noqa: B008
+        None,
         "--src",
-        help="Source language code, e.g. en.",
+        help="Source language code, e.g. en. Required unless provided via --project.",
     ),
     tgt: str = typer.Option(  # noqa: B008
         ...,
@@ -65,20 +66,32 @@ def translate(
         "--glossary",
         help="YAML glossary mapping source->target terms.",
     ),
-    tone: str = typer.Option(  # noqa: B008
-        "neutral",
+    tone: str | None = typer.Option(  # noqa: B008
+        None,
         "--tone",
-        help="Tone register: neutral, formal, academic.",
+        help=(
+            "Tone register: neutral, formal, academic. If omitted, uses project.tone when --project is set, "
+            "otherwise neutral."
+        ),
     ),
     voice: str = typer.Option(  # noqa: B008
         "thoughtful essay",
         "--voice",
         help="Narrative voice descriptor.",
     ),
-    audience: str = typer.Option(  # noqa: B008
-        "educated general",
+    audience: str | None = typer.Option(  # noqa: B008
+        None,
         "--audience",
-        help="Target audience description.",
+        help=(
+            "Target audience description. If omitted, uses project.audience when --project is set, "
+            "otherwise educated general."
+        ),
+    ),
+    project: str | None = typer.Option(  # noqa: B008
+        None,
+        "--project",
+        "-p",
+        help="Project name used to load projects/<name>.yaml for translation defaults.",
     ),
     humor: str = typer.Option(  # noqa: B008
         "none",
@@ -131,12 +144,25 @@ def translate(
     """Translate a Markdown file using offline MT + local post-edit."""
     reporter = (lambda msg: typer.secho(msg, err=True)) if verbose else None
 
+    project_cfg = None
+    if project:
+        try:
+            project_cfg = load_project(project)
+        except (FileNotFoundError, ValueError, OSError) as exc:
+            typer.secho(str(exc), err=True, fg=typer.colors.RED)
+            raise typer.Exit(5) from exc
+    resolved_src = src or (project_cfg["language"] if project_cfg else None)
+    if not resolved_src:
+        raise typer.BadParameter("--src is required unless --project provides a language")
+    resolved_tone = tone or (project_cfg["tone"] if project_cfg else "neutral")
+    resolved_audience = audience or (project_cfg["audience"] if project_cfg else "educated general")
+
     text = input_path.read_text(encoding="utf-8")
     glossary_map = _load_glossary(glossary)
-    tone_profile = ToneProfile(register=tone, voice=voice, audience=audience, humor=humor)
+    tone_profile = ToneProfile(register=resolved_tone, voice=voice, audience=resolved_audience, humor=humor)
 
     cfg = TranslationConfig(
-        source_lang=src,
+        source_lang=resolved_src,
         target_lang=tgt,
         tone=tone_profile,
         glossary=glossary_map,
