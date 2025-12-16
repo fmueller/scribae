@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import typer
 
-from . import brief
 from .brief_cli import brief_command
 from .idea_cli import idea_command
 from .meta_cli import meta_command

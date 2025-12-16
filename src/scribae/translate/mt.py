@@ -34,13 +34,9 @@ class MTTranslator:
         if model_id not in self._pipelines:
             if self.device is None or self.device == "auto":
                 import torch
-                if torch.cuda.is_available():
-                    device = 0  # Use first CUDA device
-                else:
-                    device = -1  # Use CPU
-                self._pipelines[model_id] = pipeline(
-                    "translation", model=model_id, device=device
-                )
+
+                device = 0 if torch.cuda.is_available() else -1
+                self._pipelines[model_id] = pipeline("translation", model=model_id, device=device)
             else:
                 self._pipelines[model_id] = pipeline(
                     "translation", model=model_id, device=self.device
