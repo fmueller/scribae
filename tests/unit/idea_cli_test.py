@@ -52,9 +52,10 @@ def test_idea_prints_json(monkeypatch: pytest.MonkeyPatch, note_file: Path, fake
 
     assert result.exit_code == 0
     payload = json.loads(result.stdout)
-    assert isinstance(payload, list) and len(payload) == len(ideas.ideas)
-    assert payload[0]["title"] == ideas.ideas[0].title
-    assert payload[0]["why"] == ideas.ideas[0].why
+    assert isinstance(payload, dict)
+    assert "ideas" in payload and len(payload["ideas"]) == len(ideas.ideas)
+    assert payload["ideas"][0]["title"] == ideas.ideas[0].title
+    assert payload["ideas"][0]["why"] == ideas.ideas[0].why
 
 
 def test_idea_writes_to_file(monkeypatch: pytest.MonkeyPatch, note_file: Path, tmp_path: Path, fake: Faker) -> None:
@@ -67,8 +68,8 @@ def test_idea_writes_to_file(monkeypatch: pytest.MonkeyPatch, note_file: Path, t
     assert result.exit_code == 0
     assert output_path.exists()
     saved = json.loads(output_path.read_text(encoding="utf-8"))
-    assert isinstance(saved, list) and len(saved) == len(ideas.ideas)
-    assert all(set(entry) == {"title", "description", "why"} for entry in saved)
+    assert isinstance(saved, dict) and "ideas" in saved and len(saved["ideas"]) == len(ideas.ideas)
+    assert all(set(entry) == {"title", "description", "why"} for entry in saved["ideas"])
     assert "Wrote ideas" in result.stdout
 
 
