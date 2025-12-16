@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+from typing import cast
+
+from transformers import Pipeline
+
 from scribae.translate.markdown_segmenter import MarkdownSegmenter, ProtectedText
 from scribae.translate.model_registry import ModelRegistry, ModelSpec
 from scribae.translate.mt import MTTranslator
@@ -21,6 +25,17 @@ class StubMT(MTTranslator):
         backend: str = "marian_then_nllb",
     ) -> str:
         return text.replace("Hello", "Hallo").replace("product", "Produkt")
+
+    def translate_blocks(
+        self,
+        texts: list[str],
+        src_lang: str,
+        tgt_lang: str,
+        *,
+        allow_pivot: bool = True,
+        backend: str = "marian_then_nllb",
+    ) -> list[str]:
+        return [self.translate_block(t, src_lang, tgt_lang, allow_pivot=allow_pivot, backend=backend) for t in texts]
 
 
 def test_pipeline_preserves_code_links_and_placeholders() -> None:
@@ -110,6 +125,19 @@ def test_postedit_fallback_returns_mt_draft_when_validation_fails() -> None:
         ) -> str:
             return text + " ::mt"
 
+        def translate_blocks(
+            self,
+            texts: list[str],
+            src_lang: str,
+            tgt_lang: str,
+            *,
+            allow_pivot: bool = True,
+            backend: str = "marian_then_nllb",
+        ) -> list[str]:
+            return [
+                self.translate_block(t, src_lang, tgt_lang, allow_pivot=allow_pivot, backend=backend) for t in texts
+            ]
+
     registry = ModelRegistry(specs=[])
     mt = EchoMT(registry)
     posteditor = AlwaysFailPost()
@@ -153,6 +181,19 @@ def test_postedit_abort_skips_strict_retry() -> None:
         ) -> str:
             return text + " ::mt"
 
+        def translate_blocks(
+            self,
+            texts: list[str],
+            src_lang: str,
+            tgt_lang: str,
+            *,
+            allow_pivot: bool = True,
+            backend: str = "marian_then_nllb",
+        ) -> list[str]:
+            return [
+                self.translate_block(t, src_lang, tgt_lang, allow_pivot=allow_pivot, backend=backend) for t in texts
+            ]
+
     registry = ModelRegistry(specs=[])
     mt = EchoMT(registry)
     posteditor = AbortPostEditor()
@@ -163,3 +204,26 @@ def test_postedit_abort_skips_strict_retry() -> None:
 
     assert result.endswith("::mt")
     assert posteditor.calls == 1
+
+
+def test_mt_translator_batches_and_preserves_order() -> None:
+    calls: list[list[str] | str] = []
+
+    class RecordingMT(MTTranslator):
+        def _pipeline_for(self, model_id: str) -> Pipeline:
+            def translator(texts: list[str] | str, **_: object) -> list[dict[str, str]]:
+                calls.append(texts)
+                if isinstance(texts, list):
+                    return [{"translation_text": t.upper()} for t in texts]
+                return [{"translation_text": str(texts).upper()}]
+
+            return cast(Pipeline, translator)
+
+    registry = ModelRegistry(specs=[ModelSpec(model_id="mt-en-de", src_lang="en", tgt_lang="de", backend="marian")])
+    mt = RecordingMT(registry=registry)
+
+    outputs = mt.translate_blocks(["a", "b"], "en", "de")
+
+    assert outputs == ["A", "B"]
+    assert len(calls) == 1
+    assert calls[0] == ["a", "b"]

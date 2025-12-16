@@ -56,6 +56,22 @@ class TranslationPipeline:
         if self.reporter:
             self.reporter(message)
 
+    def _report_block(
+        self,
+        block_index: int,
+        message: str,
+        *,
+        total_blocks: int | None = None,
+        block_kind: str | None = None,
+    ) -> None:
+        count = f"{block_index + 1}"
+        if total_blocks is not None:
+            count = f"{count}/{total_blocks}"
+        prefix = f"Block {count}"
+        if block_kind:
+            prefix = f"{prefix} ({block_kind})"
+        self._report(f"{prefix}: {message}")
+
     def translate(self, text: str, cfg: TranslationConfig) -> str:
         self._report(f"Starting translation: {cfg.source_lang} -> {cfg.target_lang}")
         self._report("Segmenting markdown into blocks...")
@@ -68,33 +84,108 @@ class TranslationPipeline:
         return result
 
     def translate_blocks(self, blocks: list[TextBlock], cfg: TranslationConfig) -> list[TextBlock]:
-        translated: list[TextBlock] = []
+        translated: list[TextBlock] = [block for block in blocks]
         total_blocks = len(blocks)
+        translatable: list[tuple[int, TextBlock, ProtectedText]] = []
         for idx, block in enumerate(blocks):
             if block.kind in {"code_block", "frontmatter", "blank"}:
-                self._report(f"Block {idx + 1}/{total_blocks}: Skipping {block.kind}")
-                translated.append(block)
+                self._report_block(
+                    idx,
+                    "Skipping non-translatable block",
+                    total_blocks=total_blocks,
+                    block_kind=block.kind,
+                )
                 continue
-            self._report(f"Block {idx + 1}/{total_blocks}: Translating {block.kind}...")
-            updated_text = self._translate_block(block, cfg, block_index=idx)
-            translated.append(TextBlock(kind=block.kind, text=updated_text, meta=block.meta))
+            self._report_block(
+                idx,
+                "Translating...",
+                total_blocks=total_blocks,
+                block_kind=block.kind,
+            )
+            self._report_block(
+                idx,
+                "Protecting patterns and placeholders...",
+                total_blocks=total_blocks,
+                block_kind=block.kind,
+            )
+            protected = self.segmenter.protect_text(block.text, cfg.protected_patterns)
+            translatable.append((idx, block, protected))
+
+        if translatable:
+            texts = [item[2].text for item in translatable]
+            self._report(f"Running machine translation batch ({cfg.mt_backend}) for {len(texts)} blocks...")
+            mt_outputs = self.mt.translate_blocks(
+                texts,
+                cfg.source_lang,
+                cfg.target_lang,
+                allow_pivot=cfg.allow_pivot_via_en,
+                backend=cfg.mt_backend,
+            )
+            if len(mt_outputs) != len(translatable):
+                raise ValueError("MT batch output count does not match input blocks")
+
+            for (idx, block, protected), mt_output in zip(translatable, mt_outputs, strict=False):
+                updated_text = self._translate_block(
+                    block,
+                    cfg,
+                    block_index=idx,
+                    total_blocks=total_blocks,
+                    protected=protected,
+                    mt_output=mt_output,
+                )
+                translated[idx] = TextBlock(kind=block.kind, text=updated_text, meta=block.meta)
         if len(translated) != len(blocks):
             raise ValueError("Block structure changed during translation")
         return translated
 
-    def _translate_block(self, block: TextBlock, cfg: TranslationConfig, *, block_index: int) -> str:
-        self._report("  Protecting patterns and placeholders...")
-        protected = self.segmenter.protect_text(block.text, cfg.protected_patterns)
-        self._report(f"  Running machine translation ({cfg.mt_backend})...")
-        mt_output = self.mt.translate_block(
-            protected.text,
-            cfg.source_lang,
-            cfg.target_lang,
-            allow_pivot=cfg.allow_pivot_via_en,
-            backend=cfg.mt_backend,
-        )
+    def _translate_block(
+        self,
+        block: TextBlock,
+        cfg: TranslationConfig,
+        *,
+        block_index: int,
+        total_blocks: int | None = None,
+        protected: ProtectedText | None = None,
+        mt_output: str | None = None,
+    ) -> str:
+        if protected is None:
+            self._report_block(
+                block_index,
+                "Protecting patterns and placeholders...",
+                total_blocks=total_blocks,
+                block_kind=block.kind,
+            )
+            protected = self.segmenter.protect_text(block.text, cfg.protected_patterns)
+
+        if mt_output is None:
+            self._report_block(
+                block_index,
+                f"Running machine translation ({cfg.mt_backend})...",
+                total_blocks=total_blocks,
+                block_kind=block.kind,
+            )
+            mt_output = self.mt.translate_block(
+                protected.text,
+                cfg.source_lang,
+                cfg.target_lang,
+                allow_pivot=cfg.allow_pivot_via_en,
+                backend=cfg.mt_backend,
+            )
+        else:
+            self._report_block(
+                block_index,
+                "Using batched machine translation output",
+                total_blocks=total_blocks,
+                block_kind=block.kind,
+            )
+
         mt_restored = protected.restore(mt_output)
-        self._report("  Validating MT output...")
+        self._report_block(
+            block_index,
+            "Validating MT output...",
+            total_blocks=total_blocks,
+            block_kind=block.kind,
+        )
         mt_valid = self._validate_stage(
             block.text,
             mt_output,
@@ -104,7 +195,12 @@ class TranslationPipeline:
             block_index=block_index,
         )
         if not mt_valid:
-            self._report("  MT validation failed, retrying with expanded patterns...")
+            self._report_block(
+                block_index,
+                "MT validation failed, retrying with expanded patterns...",
+                total_blocks=total_blocks,
+                block_kind=block.kind,
+            )
             expanded_patterns = cfg.protected_patterns + [r"\d+(?:[.,:/-]\d+)*"]
             protected = self.segmenter.protect_text(block.text, expanded_patterns)
             mt_output = self.mt.translate_block(
@@ -132,17 +228,34 @@ class TranslationPipeline:
                 cfg=cfg,
                 protected=protected,
                 block_index=block_index,
+                block_kind=block.kind,
+                total_blocks=total_blocks,
             )
 
         final_text = protected.restore(candidate_tokens)
-        self._report("  Validating final output...")
+        self._report_block(
+            block_index,
+            "Validating final output...",
+            total_blocks=total_blocks,
+            block_kind=block.kind,
+        )
         postedit_ok = self._validate_stage(
             block.text, candidate_tokens, final_text, protected, stage="postedit", block_index=block_index
         )
         if not postedit_ok:
-            self._report("  Validation failed, falling back to MT output")
+            self._report_block(
+                block_index,
+                "Validation failed, falling back to MT output",
+                total_blocks=total_blocks,
+                block_kind=block.kind,
+            )
             return mt_restored
-        self._report("  Block translation complete")
+        self._report_block(
+            block_index,
+            "Block translation complete",
+            total_blocks=total_blocks,
+            block_kind=block.kind,
+        )
         return final_text
 
     def _run_postedit(
@@ -153,15 +266,32 @@ class TranslationPipeline:
         protected: ProtectedText,
         *,
         block_index: int,
+        block_kind: str,
+        total_blocks: int | None = None,
     ) -> str:
-        self._report("  Running LLM post-edit (non-strict mode)...")
+        self._report_block(
+            block_index,
+            "Running LLM post-edit (non-strict mode)...",
+            total_blocks=total_blocks,
+            block_kind=block_kind,
+        )
         try:
             edited = self.postedit.post_edit(source_text, mt_draft, cfg, protected, strict=False)
-            self._report("  Post-edit completed successfully")
+            self._report_block(
+                block_index,
+                "Post-edit completed successfully",
+                total_blocks=total_blocks,
+                block_kind=block_kind,
+            )
             return edited
         except PostEditAborted as exc:
             reason = getattr(exc, "reason", str(exc))
-            self._report(f"  Post-edit skipped: {reason}")
+            self._report_block(
+                block_index,
+                f"Post-edit skipped: {reason}",
+                total_blocks=total_blocks,
+                block_kind=block_kind,
+            )
             self._debug(
                 stage="postedit_aborted",
                 block_index=block_index,
@@ -169,15 +299,30 @@ class TranslationPipeline:
             )
             return mt_draft
         except PostEditValidationError:
-            self._report("  Non-strict post-edit failed, retrying in strict mode...")
+            self._report_block(
+                block_index,
+                "Non-strict post-edit failed, retrying in strict mode...",
+                total_blocks=total_blocks,
+                block_kind=block_kind,
+            )
 
         try:
             edited = self.postedit.post_edit(source_text, mt_draft, cfg, protected, strict=True)
-            self._report("  Strict post-edit completed successfully")
+            self._report_block(
+                block_index,
+                "Strict post-edit completed successfully",
+                total_blocks=total_blocks,
+                block_kind=block_kind,
+            )
             return edited
         except PostEditAborted as exc:
             reason = getattr(exc, "reason", str(exc))
-            self._report(f"  Post-edit unavailable: {reason}")
+            self._report_block(
+                block_index,
+                f"Post-edit unavailable: {reason}",
+                total_blocks=total_blocks,
+                block_kind=block_kind,
+            )
             self._debug(
                 stage="postedit_aborted",
                 block_index=block_index,
@@ -185,7 +330,12 @@ class TranslationPipeline:
             )
             return mt_draft
         except PostEditValidationError:
-            self._report("  Post-edit failed twice, falling back to MT draft")
+            self._report_block(
+                block_index,
+                "Post-edit failed twice, falling back to MT draft",
+                total_blocks=total_blocks,
+                block_kind=block_kind,
+            )
             self._debug(
                 stage="postedit_fallback",
                 block_index=block_index,
