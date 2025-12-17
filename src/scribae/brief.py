@@ -14,7 +14,7 @@ from pydantic_ai import Agent, NativeOutput, UnexpectedModelBehavior
 from pydantic_ai.settings import ModelSettings
 
 from .io_utils import NoteDetails, load_note
-from .llm import LLM_OUTPUT_RETRIES, OpenAISettings, make_model
+from .llm import LLM_OUTPUT_RETRIES, LLM_TIMEOUT_SECONDS, OpenAISettings, make_model
 from .project import ProjectConfig
 from .prompts import SYSTEM_PROMPT, PromptBundle, build_prompt_bundle
 
@@ -32,9 +32,6 @@ __all__ = [
     "render_json",
     "save_prompt_artifacts",
 ]
-
-LLM_TIMEOUT_SECONDS = 300.0
-
 
 class BriefingError(Exception):
     """Raised when a brief cannot be generated."""

@@ -16,11 +16,8 @@ from pydantic_ai import Agent, NativeOutput, UnexpectedModelBehavior
 from pydantic_ai.settings import ModelSettings
 
 from .brief import SeoBrief
-from .llm import LLM_OUTPUT_RETRIES, OpenAISettings, make_model
+from .llm import LLM_OUTPUT_RETRIES, LLM_TIMEOUT_SECONDS, OpenAISettings, make_model
 from .project import ProjectConfig
-
-DEFAULT_META_MODEL = "mistral-nemo"
-META_TIMEOUT_SECONDS = 300.0
 
 Reporter = Callable[[str], None] | None
 
@@ -278,7 +275,7 @@ def generate_metadata(
     reporter: Reporter = None,
     agent: Agent[None, ArticleMeta] | None = None,
     prompts: PromptBundle | None = None,
-    timeout_seconds: float = META_TIMEOUT_SECONDS,
+    timeout_seconds: float = LLM_TIMEOUT_SECONDS,
     force_llm_on_missing: bool = True,
 ) -> ArticleMeta:
     """Generate final article metadata, calling the LLM when needed."""
@@ -670,7 +667,6 @@ def _report(reporter: Reporter, message: str) -> None:
 __all__ = [
     "ArticleMeta",
     "BodyDocument",
-    "DEFAULT_META_MODEL",
     "MetaBriefError",
     "MetaContext",
     "MetaError",

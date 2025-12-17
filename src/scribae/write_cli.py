@@ -4,9 +4,9 @@ from pathlib import Path
 
 import typer
 
+from .llm import DEFAULT_MODEL_NAME
 from .project import default_project, load_project
 from .writer import (
-    DEFAULT_WRITE_MODEL,
     EvidenceMode,
     WritingError,
     WritingValidationError,
@@ -37,7 +37,7 @@ def write_command(
         help="Project name used to load projects/<name>.yaml for prompt context.",
     ),
     model: str = typer.Option(  # noqa: B008
-        DEFAULT_WRITE_MODEL,
+        DEFAULT_MODEL_NAME,
         "--model",
         "-m",
         help="OpenAI/Ollama model name to request.",

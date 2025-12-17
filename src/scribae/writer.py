@@ -14,13 +14,10 @@ from pydantic_ai.settings import ModelSettings
 
 from .brief import SeoBrief
 from .io_utils import NoteDetails, load_note
-from .llm import make_model
+from .llm import LLM_TIMEOUT_SECONDS, make_model
 from .project import ProjectConfig
 from .prompts_writer import SYSTEM_PROMPT, build_user_prompt
 from .snippets import SnippetSelection, build_snippet_block
-
-DEFAULT_WRITE_MODEL = "mistral-nemo"
-WRITER_TIMEOUT_SECONDS = 300.0
 
 Reporter = Callable[[str], None] | None
 
@@ -253,9 +250,9 @@ def _invoke_model(prompt: str, *, model_name: str, temperature: float) -> str:
         return str(output).strip()
 
     try:
-        return asyncio.run(asyncio.wait_for(_call(), WRITER_TIMEOUT_SECONDS))
+        return asyncio.run(asyncio.wait_for(_call(), LLM_TIMEOUT_SECONDS))
     except TimeoutError as exc:
-        raise WritingLLMError(f"LLM request timed out after {int(WRITER_TIMEOUT_SECONDS)} seconds.") from exc
+        raise WritingLLMError(f"LLM request timed out after {int(LLM_TIMEOUT_SECONDS)} seconds.") from exc
     except KeyboardInterrupt:
         raise
     except Exception as exc:  # pragma: no cover - surfaced to CLI
@@ -312,7 +309,6 @@ def _report(reporter: Reporter, message: str) -> None:
 
 
 __all__ = [
-    "DEFAULT_WRITE_MODEL",
     "EvidenceMode",
     "WritingContext",
     "WritingError",
