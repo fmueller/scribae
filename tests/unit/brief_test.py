@@ -90,7 +90,7 @@ def _briefing_context(fake: Faker) -> BriefingContext:
         max_chars=1000,
     )
     prompts = PromptBundle(system_prompt="system", user_prompt="prompt")
-    return BriefingContext(note=note, project=default_project(), prompts=prompts)
+    return BriefingContext(note=note, project=default_project(), prompts=prompts, language="en")
 
 
 def test_generate_brief_returns_structured_result(monkeypatch: pytest.MonkeyPatch, fake: Faker) -> None:

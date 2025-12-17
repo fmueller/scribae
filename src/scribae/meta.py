@@ -7,7 +7,7 @@ import textwrap
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
 import frontmatter
 import yaml
@@ -16,6 +16,7 @@ from pydantic_ai import Agent, NativeOutput, UnexpectedModelBehavior
 from pydantic_ai.settings import ModelSettings
 
 from .brief import SeoBrief
+from .language import LanguageMismatchError, LanguageResolutionError, ensure_language_output, resolve_output_language
 from .llm import LLM_OUTPUT_RETRIES, LLM_TIMEOUT_SECONDS, OpenAISettings, make_model
 from .project import ProjectConfig
 
@@ -147,6 +148,7 @@ class MetaContext:
     overwrite: OverwriteMode
     current_meta: dict[str, Any]
     fabricated_fields: bool
+    language: str
 
 
 @dataclass(frozen=True)
@@ -185,7 +187,8 @@ USER_PROMPT_TEMPLATE = textwrap.dedent(
     Site: {site_name} ({domain})
     Audience: {audience}
     Tone: {tone}
-    Language (default): {language}
+    ResolvedLanguage: {language}
+    Output directive: respond entirely in language code '{language}'.
     ProjectKeywords: {project_keywords}
     AllowedTags: {allowed_tags}
 
@@ -218,6 +221,8 @@ def prepare_context(
     project: ProjectConfig,
     overwrite: OverwriteMode,
     max_chars: int,
+    language: str | None = None,
+    language_detector: Callable[[str], str] | None = None,
     reporter: Reporter = None,
 ) -> MetaContext:
     """Load inputs and prepare the metadata context."""
@@ -229,6 +234,25 @@ def prepare_context(
 
     _report(reporter, f"Loaded body from {body.path.name} ({'truncated' if body.truncated else 'full'}).")
     current_meta, fabricated_fields = _build_seed_meta(body, brief=brief, project=project, overwrite=overwrite)
+
+    try:
+        language_resolution = resolve_output_language(
+            flag_language=language,
+            project_language=project.get("language"),
+            metadata=body.frontmatter,
+            text=body.content,
+            language_detector=language_detector,
+        )
+    except LanguageResolutionError as exc:
+        raise MetaValidationError(str(exc)) from exc
+
+    _report(
+        reporter,
+        f"Resolved output language: {language_resolution.language} (source: {language_resolution.source})",
+    )
+
+    current_meta["language"] = language_resolution.language
+
     return MetaContext(
         body=body,
         brief=brief,
@@ -236,6 +260,7 @@ def prepare_context(
         overwrite=overwrite,
         current_meta=current_meta,
         fabricated_fields=fabricated_fields,
+        language=language_resolution.language,
     )
 
 
@@ -250,7 +275,7 @@ def build_prompt_bundle(context: MetaContext) -> PromptBundle:
         domain=context.project["domain"],
         audience=context.project["audience"],
         tone=context.project["tone"],
-        language=context.project["language"],
+        language=context.language,
         project_keywords=", ".join(keywords) if keywords else "none",
         allowed_tags=allowed_tags if isinstance(allowed_tags, str) else ", ".join(allowed_tags),
         brief_context=brief_context,
@@ -277,6 +302,7 @@ def generate_metadata(
     prompts: PromptBundle | None = None,
     timeout_seconds: float = LLM_TIMEOUT_SECONDS,
     force_llm_on_missing: bool = True,
+    language_detector: Callable[[str], str] | None = None,
 ) -> ArticleMeta:
     """Generate final article metadata, calling the LLM when needed."""
     prompts = prompts or build_prompt_bundle(context)
@@ -300,11 +326,25 @@ def generate_metadata(
     )
 
     try:
-        meta = _invoke_agent(llm_agent, prompts.user_prompt, timeout_seconds=timeout_seconds)
+        meta = cast(
+            ArticleMeta,
+            ensure_language_output(
+                prompt=prompts.user_prompt,
+                expected_language=context.language,
+                invoke=lambda prompt: _invoke_agent(llm_agent, prompt, timeout_seconds=timeout_seconds),
+                extract_text=_meta_language_text,
+                reporter=reporter,
+                language_detector=language_detector,
+            ),
+        )
     except UnexpectedModelBehavior as exc:
         raise MetaValidationError(
             "LLM response never satisfied the ArticleMeta schema, giving up after repeated retries."
         ) from exc
+    except LanguageMismatchError as exc:
+        raise MetaValidationError(str(exc)) from exc
+    except LanguageResolutionError as exc:
+        raise MetaValidationError(str(exc)) from exc
     except TimeoutError as exc:
         raise MetaLLMError(f"LLM request timed out after {int(timeout_seconds)} seconds.") from exc
     except KeyboardInterrupt:
@@ -585,6 +625,24 @@ def _invoke_agent(agent: Agent[None, ArticleMeta], prompt: str, *, timeout_secon
         raise TypeError("LLM output is not an ArticleMeta instance")
 
     return asyncio.run(asyncio.wait_for(_call(), timeout_seconds))
+
+
+def _meta_language_text(meta: ArticleMeta) -> str:
+    tags = " ".join(meta.tags)
+    keywords = " ".join(meta.keywords or [])
+    search_intent = meta.search_intent or ""
+    language = meta.language or ""
+    return "\n".join(
+        [
+            meta.title,
+            meta.slug,
+            meta.excerpt,
+            tags,
+            keywords,
+            search_intent,
+            language,
+        ]
+    )
 
 
 def _truncate(value: str, max_chars: int) -> tuple[str, bool]:

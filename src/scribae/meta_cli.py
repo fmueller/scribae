@@ -45,6 +45,12 @@ def meta_command(
         "-p",
         help="Project name used to load projects/<name>.yaml for prompt context.",
     ),
+    language: str | None = typer.Option(  # noqa: B008
+        None,
+        "--language",
+        "-l",
+        help="Language code for the generated metadata (overrides project config).",
+    ),
     model: str = typer.Option(  # noqa: B008
         DEFAULT_MODEL_NAME,
         "--model",
@@ -141,6 +147,7 @@ def meta_command(
             project=project_config,
             overwrite=overwrite_mode,
             max_chars=max_chars,
+            language=language,
             reporter=reporter,
         )
     except MetaBriefError as exc:

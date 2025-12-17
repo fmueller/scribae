@@ -8,12 +8,14 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
+from typing import cast
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 from pydantic_ai import Agent, NativeOutput, UnexpectedModelBehavior
 from pydantic_ai.settings import ModelSettings
 
 from .io_utils import NoteDetails, load_note
+from .language import LanguageMismatchError, LanguageResolutionError, ensure_language_output, resolve_output_language
 from .llm import (
     LLM_OUTPUT_RETRIES,
     LLM_TIMEOUT_SECONDS,
@@ -86,6 +88,7 @@ class IdeaContext:
     note: NoteDetails
     project: ProjectConfig
     prompts: IdeaPromptBundle
+    language: str
 
 
 Reporter = Callable[[str], None] | None
@@ -105,6 +108,8 @@ def prepare_context(
     *,
     project: ProjectConfig,
     max_chars: int,
+    language: str | None = None,
+    language_detector: Callable[[str], str] | None = None,
     reporter: Reporter = None,
 ) -> IdeaContext:
     """Load note data and assemble prompt context."""
@@ -123,13 +128,36 @@ def prepare_context(
 
     _report(reporter, f"Loaded note '{note.title}' from {note.path}")
 
+    try:
+        language_resolution = resolve_output_language(
+            flag_language=language,
+            project_language=project.get("language"),
+            metadata=note.metadata,
+            text=note.body,
+            language_detector=language_detector,
+        )
+    except LanguageResolutionError as exc:
+        raise IdeaValidationError(str(exc)) from exc
+
+    _report(
+        reporter,
+        f"Resolved output language: {language_resolution.language} (source: {language_resolution.source})",
+    )
+
     prompts = IdeaPromptBundle(
         system_prompt=IDEA_SYSTEM_PROMPT,
-        user_prompt=_build_user_prompt(project=project, note_title=note.title, note_content=note.body),
+        user_prompt=_build_user_prompt(
+            project=project,
+            note_title=note.title,
+            note_content=note.body,
+            language=language_resolution.language,
+        ),
     )
     _report(reporter, "Prepared idea-generation prompt.")
 
-    return IdeaContext(note=note, project=project, prompts=prompts)
+    return IdeaContext(
+        note=note, project=project, prompts=prompts, language=language_resolution.language
+    )
 
 
 def generate_ideas(
@@ -141,6 +169,7 @@ def generate_ideas(
     settings: OpenAISettings | None = None,
     agent: Agent[None, IdeaList] | None = None,
     timeout_seconds: float = LLM_TIMEOUT_SECONDS,
+    language_detector: Callable[[str], str] | None = None,
 ) -> IdeaList:
     """Run the LLM call and return validated ideas."""
 
@@ -152,13 +181,29 @@ def generate_ideas(
     _report(reporter, f"Calling model '{model_name}' via {resolved_settings.base_url}")
 
     try:
-        ideas = _invoke_agent(llm_agent, context.prompts.user_prompt, timeout_seconds=timeout_seconds)
+        ideas = cast(
+            IdeaList,
+            ensure_language_output(
+                prompt=context.prompts.user_prompt,
+                expected_language=context.language,
+                invoke=lambda prompt: _invoke_agent(llm_agent, prompt, timeout_seconds=timeout_seconds),
+                extract_text=_idea_language_text,
+                reporter=reporter,
+                language_detector=language_detector,
+            ),
+        )
     except UnexpectedModelBehavior as exc:
         raise IdeaValidationError(
             "LLM response never satisfied the idea list schema, giving up after repeated retries."
         ) from exc
+    except LanguageMismatchError as exc:
+        raise IdeaValidationError(str(exc)) from exc
+    except LanguageResolutionError as exc:
+        raise IdeaValidationError(str(exc)) from exc
     except IdeaLLMError:
         raise
+    except TimeoutError as exc:
+        raise IdeaLLMError(f"LLM request timed out after {int(timeout_seconds)} seconds.") from exc
     except Exception as exc:  # pragma: no cover - surfaced to CLI
         raise IdeaLLMError(f"LLM request failed: {exc}") from exc
 
@@ -197,7 +242,9 @@ def save_prompt_artifacts(
     return prompt_path, note_path
 
 
-def _build_user_prompt(*, project: ProjectConfig, note_title: str, note_content: str) -> str:
+def _build_user_prompt(
+    *, project: ProjectConfig, note_title: str, note_content: str, language: str
+) -> str:
     keywords = ", ".join(project["keywords"]) if project["keywords"] else "none"
     allowed_tags = ", ".join(project["allowed_tags"] or []) if project["allowed_tags"] else "any"
 
@@ -210,6 +257,7 @@ def _build_user_prompt(*, project: ProjectConfig, note_title: str, note_content:
         FocusKeywords: {keywords}
         AllowedTags: {allowed_tags}
         Language: {language}
+        Output directive: respond entirely in language code '{language}'.
 
         [TASK]
         Propose 5–8 content ideas grounded in the note. Avoid generic listicles or duplicative angles.
@@ -236,7 +284,7 @@ def _build_user_prompt(*, project: ProjectConfig, note_title: str, note_content:
         tone=project["tone"],
         keywords=keywords,
         allowed_tags=allowed_tags,
-        language=project["language"],
+        language=language,
         note_title=note_title.strip(),
         note_content=note_content.strip(),
     )
@@ -253,6 +301,12 @@ def _create_agent(model_name: str, settings: OpenAISettings, *, temperature: flo
         output_type=NativeOutput(IdeaList, name="IdeaList", strict=True),
         instructions=IDEA_SYSTEM_PROMPT,
         output_retries=LLM_OUTPUT_RETRIES,
+    )
+
+
+def _idea_language_text(ideas: IdeaList) -> str:
+    return "\n".join(
+        f"{item.title} {item.description} {item.why}" for item in ideas.ideas
     )
 
 

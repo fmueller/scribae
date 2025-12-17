@@ -36,6 +36,12 @@ def write_command(
         "-p",
         help="Project name used to load projects/<name>.yaml for prompt context.",
     ),
+    language: str | None = typer.Option(  # noqa: B008
+        None,
+        "--language",
+        "-l",
+        help="Language code for the generated article (overrides project config).",
+    ),
     model: str = typer.Option(  # noqa: B008
         DEFAULT_MODEL_NAME,
         "--model",
@@ -116,6 +122,7 @@ def write_command(
             brief_path=brief_path,
             project=project_config,
             max_chars=max_chars,
+            language=language,
             reporter=reporter,
         )
     except WritingError as exc:

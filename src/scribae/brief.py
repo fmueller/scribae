@@ -7,13 +7,14 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 from pydantic_ai import Agent, NativeOutput, UnexpectedModelBehavior
 from pydantic_ai.settings import ModelSettings
 
 from .io_utils import NoteDetails, load_note
+from .language import LanguageMismatchError, LanguageResolutionError, ensure_language_output, resolve_output_language
 from .llm import LLM_OUTPUT_RETRIES, LLM_TIMEOUT_SECONDS, OpenAISettings, make_model
 from .project import ProjectConfig
 from .prompts import SYSTEM_PROMPT, PromptBundle, build_prompt_bundle
@@ -135,6 +136,7 @@ class BriefingContext:
     note: NoteDetails
     project: ProjectConfig
     prompts: PromptBundle
+    language: str
 
 
 Reporter = Callable[[str], None] | None
@@ -145,6 +147,8 @@ def prepare_context(
     *,
     project: ProjectConfig,
     max_chars: int,
+    language: str | None = None,
+    language_detector: Callable[[str], str] | None = None,
     reporter: Reporter = None,
 ) -> BriefingContext:
     """Load note data and build the prompt bundle."""
@@ -162,10 +166,33 @@ def prepare_context(
 
     _report(reporter, f"Loaded note '{note.title}' from {note.path}")
 
-    prompts = build_prompt_bundle(project=project, note_title=note.title, note_content=note.body)
+    try:
+        language_resolution = resolve_output_language(
+            flag_language=language,
+            project_language=project.get("language"),
+            metadata=note.metadata,
+            text=note.body,
+            language_detector=language_detector,
+        )
+    except LanguageResolutionError as exc:
+        raise BriefValidationError(str(exc)) from exc
+
+    _report(
+        reporter,
+        f"Resolved output language: {language_resolution.language} (source: {language_resolution.source})",
+    )
+
+    prompts = build_prompt_bundle(
+        project=project,
+        note_title=note.title,
+        note_content=note.body,
+        language=language_resolution.language,
+    )
     _report(reporter, "Prepared structured prompt.")
 
-    return BriefingContext(note=note, project=project, prompts=prompts)
+    return BriefingContext(
+        note=note, project=project, prompts=prompts, language=language_resolution.language
+    )
 
 
 def generate_brief(
@@ -177,6 +204,7 @@ def generate_brief(
     settings: OpenAISettings | None = None,
     agent: Agent[None, SeoBrief] | None = None,
     timeout_seconds: float = LLM_TIMEOUT_SECONDS,
+    language_detector: Callable[[str], str] | None = None,
 ) -> SeoBrief:
     """Run the LLM call and return a validated SeoBrief."""
     resolved_settings = settings or OpenAISettings.from_env()
@@ -190,11 +218,25 @@ def generate_brief(
     )
 
     try:
-        brief = _invoke_agent(llm_agent, context.prompts.user_prompt, timeout_seconds=timeout_seconds)
+        brief = cast(
+            SeoBrief,
+            ensure_language_output(
+                prompt=context.prompts.user_prompt,
+                expected_language=context.language,
+                invoke=lambda prompt: _invoke_agent(llm_agent, prompt, timeout_seconds=timeout_seconds),
+                extract_text=_brief_language_text,
+                reporter=reporter,
+                language_detector=language_detector,
+            ),
+        )
     except UnexpectedModelBehavior as exc:
         raise BriefValidationError(
             "LLM response never satisfied the SeoBrief schema, giving up after repeated retries."
         ) from exc
+    except LanguageMismatchError as exc:
+        raise BriefValidationError(str(exc)) from exc
+    except LanguageResolutionError as exc:
+        raise BriefValidationError(str(exc)) from exc
     except TimeoutError as exc:
         raise BriefLLMError(f"LLM request timed out after {int(timeout_seconds)} seconds.") from exc
     except KeyboardInterrupt:
@@ -270,6 +312,24 @@ def _current_timestamp() -> str:
 def _slugify(value: str) -> str:
     lowered = value.lower()
     return re.sub(r"[^a-z0-9]+", "-", lowered).strip("-")
+
+
+def _brief_language_text(brief: SeoBrief) -> str:
+    faq_text = "\n".join(f"{item.question} {item.answer}" for item in brief.faq)
+    outline_text = "\n".join(brief.outline)
+    keyword_text = ", ".join([brief.primary_keyword, *brief.secondary_keywords])
+    return "\n".join(
+        [
+            brief.title,
+            brief.h1,
+            brief.angle,
+            brief.audience,
+            brief.meta_description,
+            outline_text,
+            keyword_text,
+            faq_text,
+        ]
+    )
 
 
 def _report(reporter: Reporter, message: str) -> None:
