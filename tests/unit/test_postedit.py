@@ -1,0 +1,335 @@
+"""Tests for LLMPostEditor Markdown structure preservation."""
+
+from __future__ import annotations
+
+import asyncio
+from pathlib import Path
+from typing import Any, cast
+
+import pytest
+from pydantic_ai import Agent, UnexpectedModelBehavior
+
+from scribae.translate.markdown_segmenter import ProtectedText
+from scribae.translate.pipeline import ToneProfile, TranslationConfig
+from scribae.translate.postedit import LLMPostEditor, PostEditAborted
+
+
+class TestRestoreMarkdownStructure:
+    """Tests for the _restore_markdown_structure method."""
+
+    def setup_method(self) -> None:
+        """Create a post-editor instance for testing."""
+        self.posteditor = LLMPostEditor(create_agent=False)
+
+    def test_blockquotes_preserved(self) -> None:
+        """Blockquote prefixes are restored when stripped by LLM."""
+        mt_draft = "> This is a quote\n> Second line of quote"
+        edited = "This is a quote\nSecond line of quote"
+
+        result = self.posteditor._restore_markdown_structure(mt_draft, edited)
+
+        assert result == "> This is a quote\n> Second line of quote"
+
+    def test_nested_blockquotes_preserved(self) -> None:
+        """Nested blockquote prefixes are restored correctly."""
+        mt_draft = "> Outer quote\n> > Nested quote\n> > > Deeply nested"
+        edited = "Outer quote\nNested quote\nDeeply nested"
+
+        result = self.posteditor._restore_markdown_structure(mt_draft, edited)
+
+        assert "> Outer quote" in result
+        assert "> > Nested quote" in result
+        assert "> > > Deeply nested" in result
+
+    def test_bullet_list_preserved(self) -> None:
+        """Bullet list markers (-, *, +) are restored when stripped."""
+        mt_draft = "- Item one\n- Item two\n- Item three"
+        edited = "Item one\nItem two\nItem three"
+
+        result = self.posteditor._restore_markdown_structure(mt_draft, edited)
+
+        assert result == "- Item one\n- Item two\n- Item three"
+
+    def test_asterisk_list_preserved(self) -> None:
+        """Asterisk list markers are restored when stripped."""
+        mt_draft = "* First\n* Second"
+        edited = "First\nSecond"
+
+        result = self.posteditor._restore_markdown_structure(mt_draft, edited)
+
+        assert result == "* First\n* Second"
+
+    def test_plus_list_preserved(self) -> None:
+        """Plus list markers are restored when stripped."""
+        mt_draft = "+ Alpha\n+ Beta"
+        edited = "Alpha\nBeta"
+
+        result = self.posteditor._restore_markdown_structure(mt_draft, edited)
+
+        assert result == "+ Alpha\n+ Beta"
+
+    def test_numbered_list_preserved(self) -> None:
+        """Numbered list markers are restored when stripped."""
+        mt_draft = "1. First item\n2. Second item\n10. Tenth item"
+        edited = "First item\nSecond item\nTenth item"
+
+        result = self.posteditor._restore_markdown_structure(mt_draft, edited)
+
+        assert result == "1. First item\n2. Second item\n10. Tenth item"
+
+    def test_mixed_markdown_preserved(self) -> None:
+        """Mixed Markdown content (blockquotes + lists + text) is preserved."""
+        mt_draft = "# Heading\n\n> A blockquote\n\n- List item\n\n**Bold text**"
+        edited = "# Heading\n\nA blockquote\n\nList item\n\n**Bold text**"
+
+        result = self.posteditor._restore_markdown_structure(mt_draft, edited)
+
+        assert "> A blockquote" in result
+        assert "- List item" in result
+        assert "**Bold text**" in result
+
+    def test_indented_list_preserved(self) -> None:
+        """Indented list markers are restored correctly."""
+        mt_draft = "- Parent\n  - Child\n    - Grandchild"
+        edited = "Parent\nChild\nGrandchild"
+
+        result = self.posteditor._restore_markdown_structure(mt_draft, edited)
+
+        assert "- Parent" in result
+        assert "  - Child" in result
+        assert "    - Grandchild" in result
+
+    def test_no_restoration_when_line_counts_differ_significantly(self) -> None:
+        """Restoration is skipped when line counts differ by more than 33%."""
+        mt_draft = "Line 1\nLine 2\nLine 3"
+        # Edited has 5 lines vs 3 lines in MT (>33% difference)
+        edited = "Line 1\nLine 2\nLine 3\nLine 4\nLine 5"
+
+        result = self.posteditor._restore_markdown_structure(mt_draft, edited)
+
+        # Should return edited unchanged
+        assert result == edited
+
+    def test_no_restoration_when_fewer_lines_significantly(self) -> None:
+        """Restoration is skipped when edited has significantly fewer lines."""
+        mt_draft = "Line 1\nLine 2\nLine 3\nLine 4\nLine 5\nLine 6"
+        # Edited has 3 lines vs 6 lines in MT (50% difference)
+        edited = "Line 1\nLine 2\nLine 3"
+
+        result = self.posteditor._restore_markdown_structure(mt_draft, edited)
+
+        # Should return edited unchanged
+        assert result == edited
+
+    def test_empty_mt_draft_returns_edited(self) -> None:
+        """Empty MT draft returns edited text unchanged."""
+        mt_draft = ""
+        edited = "Some edited text"
+
+        result = self.posteditor._restore_markdown_structure(mt_draft, edited)
+
+        assert result == edited
+
+    def test_preserves_existing_markdown_in_edited(self) -> None:
+        """Does not double-add prefixes if edited already has them."""
+        mt_draft = "> Quote line\n- List item"
+        edited = "> Quote line\n- List item"
+
+        result = self.posteditor._restore_markdown_structure(mt_draft, edited)
+
+        assert result == "> Quote line\n- List item"
+
+    def test_extra_edited_lines_kept_as_is(self) -> None:
+        """Extra lines in edited (within threshold) are kept unchanged."""
+        mt_draft = "> Line 1\n> Line 2\n> Line 3\n> Line 4"
+        # 5 lines vs 4 lines is 25% difference, within 33% threshold
+        edited = "Line 1\nLine 2\nLine 3\nLine 4\nExtra line"
+
+        result = self.posteditor._restore_markdown_structure(mt_draft, edited)
+
+        lines = result.splitlines()
+        assert lines[0] == "> Line 1"
+        assert lines[1] == "> Line 2"
+        assert lines[2] == "> Line 3"
+        assert lines[3] == "> Line 4"
+        assert lines[4] == "Extra line"
+
+    def test_blockquote_with_list_inside(self) -> None:
+        """Blockquotes containing lists are handled (blockquote takes precedence)."""
+        mt_draft = "> - List in quote"
+        edited = "- List in quote"
+
+        result = self.posteditor._restore_markdown_structure(mt_draft, edited)
+
+        # The blockquote prefix should be restored
+        assert result == "> - List in quote"
+
+
+class TestPostEditGuards:
+    def setup_method(self) -> None:
+        self.cfg = TranslationConfig(source_lang="en", target_lang="de", tone=ToneProfile())
+
+    def test_prompt_too_long_aborts_postedit(self) -> None:
+        class DummyAgent:
+            async def run(self, prompt: str, **_: object) -> object:  # pragma: no cover - should be skipped by guard
+                return type("Run", (), {"output": "ok"})()
+
+        posteditor = LLMPostEditor(agent=cast(Agent[None, str], DummyAgent()), max_chars=10, timeout_seconds=1)
+
+        with pytest.raises(PostEditAborted):
+            posteditor.post_edit("source", "mt draft", self.cfg, ProtectedText("mt draft", {}))
+
+    def test_timeout_aborts_postedit(self) -> None:
+        class SlowAgent:
+            async def run(self, prompt: str, **_: object) -> object:
+                await asyncio.sleep(0.05)
+                return type("Run", (), {"output": "ok"})()
+
+        posteditor = LLMPostEditor(agent=cast(Agent[None, str], SlowAgent()), timeout_seconds=0.01, max_chars=1_000_000)
+
+        with pytest.raises(PostEditAborted):
+            posteditor.post_edit("source", "mt draft", self.cfg, ProtectedText("mt draft", {}))
+
+    def test_inputs_trimmed_to_budget(self) -> None:
+        recorded: dict[str, str] = {}
+
+        class RecordingAgent:
+            async def run(self, prompt: str, **_: object) -> object:
+                recorded["prompt"] = prompt
+                return type("Run", (), {"output": "ok"})()
+
+        posteditor = LLMPostEditor(
+            agent=cast(Agent[None, str], RecordingAgent()),
+            max_chars=10_000,
+            timeout_seconds=1,
+        )
+        long_source = "X" * 6_000
+        long_mt = "Y" * 6_000
+
+        posteditor.post_edit(long_source, long_mt, self.cfg, ProtectedText(long_mt, {}))
+
+        prompt = recorded["prompt"]
+        assert "X" * 4_501 not in prompt
+        assert "Y" * 4_501 not in prompt
+
+
+class TestPostEditOutputValidator:
+    def setup_method(self) -> None:
+        self.posteditor = LLMPostEditor(create_agent=False, language_detector=lambda _text: "de")
+
+    def test_rejects_missing_placeholder(self) -> None:
+        validator = self.posteditor._build_output_validator(["__P1__"], mt_draft="> Quote", expected_lang="de")
+
+        with pytest.raises(UnexpectedModelBehavior):
+            validator("> Quote without token")
+
+    def test_rejects_large_line_drift(self) -> None:
+        validator = self.posteditor._build_output_validator([], mt_draft="Line 1\nLine 2\nLine 3", expected_lang="de")
+
+        with pytest.raises(UnexpectedModelBehavior):
+            validator("Only one line")
+
+    def test_rejects_removed_markdown_markers(self) -> None:
+        mt_draft = "> Quoted line\n- list item"
+        validator = self.posteditor._build_output_validator([], mt_draft=mt_draft, expected_lang="de")
+
+        with pytest.raises(UnexpectedModelBehavior):
+            validator("Quoted line\nlist item")
+
+    def test_accepts_valid_output(self) -> None:
+        mt_draft = "> Quoted line\n- list item"
+        validator = self.posteditor._build_output_validator(["__P1__"], mt_draft=mt_draft, expected_lang="de")
+
+        result = validator("> Quoted line with __P1__\n- list item")
+
+        assert result.startswith("> Quoted line with __P1__")
+
+    def test_rejects_unexpected_language(self) -> None:
+        posteditor = LLMPostEditor(create_agent=False, language_detector=lambda _text: "fr")
+        validator = posteditor._build_output_validator([], mt_draft="Text", expected_lang="de")
+
+        with pytest.raises(UnexpectedModelBehavior):
+            validator("Bonjour tout le monde")
+
+    def test_language_detection_uses_fast_langdetect(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        model_path = tmp_path / "lid.176.bin"
+        posteditor = LLMPostEditor(create_agent=False, language_detector=None)
+        monkeypatch.setenv("FASTTEXT_LID_MODEL", str(model_path))
+
+        captured: dict[str, Any] = {}
+
+        class FakeConfig:
+            def __init__(self, **kwargs: object) -> None:
+                captured["config_kwargs"] = kwargs
+
+        class FakeDetector:
+            def __init__(self, config: FakeConfig | None = None) -> None:
+                captured["config"] = config
+
+            def detect(
+                self,
+                text: str,
+                model: str = "auto",
+                k: int = 1,
+                threshold: float = 0.0,
+            ) -> list[dict[str, object]]:
+                captured["detect_args"] = (text, model, k, threshold)
+                return [{"lang": "DE", "score": 0.9}]
+
+        class FakeModule:
+            LangDetectConfig = FakeConfig
+            LangDetector = FakeDetector
+
+        fake_module = FakeModule()
+        monkeypatch.setattr("scribae.translate.postedit.importlib.import_module", lambda name: fake_module)
+
+        detector = posteditor._create_language_detector()
+        lang = detector("Hallo Welt")
+
+        assert lang == "de"
+        assert captured["config_kwargs"] == {"custom_model_path": str(model_path)}
+        assert captured["detect_args"][1:] == ("auto", 1, 0.0)
+
+    def test_language_detection_falls_back_on_numpy_copy_error(self) -> None:
+        posteditor = LLMPostEditor(create_agent=False, language_detector=None)
+
+        class FakeDetector:
+            config = type("Config", (), {"normalize_input": True})()
+
+            def __init__(self) -> None:
+                self.called = {"detect": 0, "predict": 0}
+
+            def detect(
+                self, text: str, model: str = "auto", k: int = 1, threshold: float = 0.0
+            ) -> list[dict[str, object]]:
+                self.called["detect"] += 1
+                raise ValueError("Unable to avoid copy while creating an array as requested.")
+
+            def _get_model(self, low_memory: bool, fallback_on_memory_error: bool) -> Any:
+                self.called["predict"] += 1
+
+                class RawPredictor:
+                    def __init__(self) -> None:
+                        class F:
+                            def predict(
+                                self_inner, text: str, k: int, threshold: float, mode: str
+                            ) -> list[tuple[float, str]]:
+                                return [(0.9, "__label__EN")]
+
+                        self.f = F()
+
+                return RawPredictor()
+
+            def _preprocess_text(self, text: str) -> str:
+                return text
+
+            def _normalize_text(self, text: str, normalize_input: bool) -> str:
+                return text
+
+        detector = FakeDetector()
+        results = posteditor._detect_labels(detector, "Hello", model="auto", k=1, threshold=0.0)
+
+        assert results[0]["lang"] == "EN"
+        assert results[0]["score"] == 0.9
+        assert detector.called["detect"] == 1
+        assert detector.called["predict"] == 1

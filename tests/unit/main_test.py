@@ -65,7 +65,7 @@ def test_brief_requires_output_choice(note_file: Path) -> None:
 
 def test_brief_prints_json(monkeypatch: pytest.MonkeyPatch, note_file: Path, fake: Faker) -> None:
     brief_obj = _fake_brief(fake)
-    monkeypatch.setattr("scribae.main.brief.generate_brief", lambda *_, **__: brief_obj)
+    monkeypatch.setattr("scribae.brief.generate_brief", lambda *_, **__: brief_obj)
 
     result = runner.invoke(
         app,
@@ -85,7 +85,7 @@ def test_brief_prints_json(monkeypatch: pytest.MonkeyPatch, note_file: Path, fak
 
 def test_brief_writes_to_file(monkeypatch: pytest.MonkeyPatch, note_file: Path, tmp_path: Path, fake: Faker) -> None:
     brief_obj = _fake_brief(fake)
-    monkeypatch.setattr("scribae.main.brief.generate_brief", lambda *_, **__: brief_obj)
+    monkeypatch.setattr("scribae.brief.generate_brief", lambda *_, **__: brief_obj)
     output_path = tmp_path / "brief.json"
 
     result = runner.invoke(
@@ -115,7 +115,7 @@ def test_brief_dry_run_prints_prompt(monkeypatch: pytest.MonkeyPatch, note_file:
     def _should_not_run(*_: object, **__: object) -> None:
         raise AssertionError("generate_brief should not run during dry run")
 
-    monkeypatch.setattr("scribae.main.brief.generate_brief", _should_not_run)
+    monkeypatch.setattr("scribae.brief.generate_brief", _should_not_run)
 
     result = runner.invoke(
         app,
@@ -140,8 +140,8 @@ def test_brief_save_prompt_creates_files(
     note_body: str,
 ) -> None:
     brief_obj = _fake_brief(fake)
-    monkeypatch.setattr("scribae.main.brief.generate_brief", lambda *_, **__: brief_obj)
-    monkeypatch.setattr("scribae.main.brief._current_timestamp", lambda: "20240101-120000")
+    monkeypatch.setattr("scribae.brief.generate_brief", lambda *_, **__: brief_obj)
+    monkeypatch.setattr("scribae.brief._current_timestamp", lambda: "20240101-120000")
 
     prompt_dir = tmp_path / "prompts"
 
