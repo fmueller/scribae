@@ -294,37 +294,52 @@ class LLMPostEditor:
         *,
         strict: bool,
     ) -> str:
+        placeholder_text = ", ".join(placeholders) or "none"
         constraints = [
-            "Preserve meaning exactly; do not add or remove claims.",
-            "Output must have IDENTICAL Markdown structure to the MT draft.",
+            "Preserve meaning exactly; do not add or remove claims or reorder sentences.",
+            f"Output must stay in the target language ({cfg.target_lang}); no code-switching.",
+            "Maintain IDENTICAL line count and Markdown structure to the MT draft.",
             "Blockquotes MUST retain the '> ' prefix on each line (including nested '> > ').",
             "List markers (-, *, +, 1., 2., etc.) MUST stay unchanged at the start of lines.",
             "Headings (##, ###, etc.) MUST remain at their exact level.",
             "Bold (**text**) and italic (*text*) markers MUST be preserved exactly.",
             "Empty lines and spacing MUST match the MT draft structure exactly.",
-            "Do not alter protected tokens: " + ", ".join(placeholders),
+            f"Do not alter protected tokens (placeholders): {placeholder_text}.",
             "Preserve URLs, IDs, file names, and numeric values.",
-            "Replace idioms with natural equivalents; otherwise paraphrase lightly.",
+            "Apply glossary substitutions exactly; do not paraphrase glossary targets.",
+            "Make only minimal edits needed for fluency and idioms.",
         ]
         if strict:
-            constraints.append("If uncertain, return the MT draft verbatim.")
+            constraints.append("If uncertain or constraints conflict, return the MT draft verbatim.")
 
         glossary_lines = [f"- {src} -> {tgt}" for src, tgt in cfg.glossary.items()]
-        glossary_section = "\n".join(glossary_lines) if glossary_lines else "none"
+        glossary_section = (
+            "\n".join(glossary_lines) if glossary_lines else "none (use KEEP to leave the source term as-is)"
+        )
+
+        self_checks = [
+            "- Placeholders are unchanged and all present.",
+            "- Glossary targets are applied (KEEP terms remain in source form).",
+            "- Line count and Markdown prefixes (quotes, lists, headings) match the MT draft.",
+            f"- Output language matches target '{cfg.target_lang}'.",
+        ]
 
         tone = cfg.tone
         return (
-            "You are a post-editor improving a machine translation.\n"
+            "You are a post-editor improving a machine translation with minimal edits.\n"
+            f"Source language: {cfg.source_lang}; Target language: {cfg.target_lang}.\n"
             f"Tone: register={tone.register}, audience={tone.audience}.\n"
-            "Constraints:\n"
+            "[CONSTRAINTS]\n"
             + "\n".join(f"- {line}" for line in constraints)
-            + "\nGlossary:\n"
+            + "\n[GLOSSARY]\n"
             f"{glossary_section}\n"
-            "SOURCE TEXT:\n"
+            "[INPUT] SOURCE TEXT:\n"
             f"{source_text}\n\n"
-            "MT DRAFT:\n"
+            "[INPUT] MT DRAFT:\n"
             f"{mt_draft}\n\n"
-            "Return only the corrected translation."
+            "[SELF-CHECK BEFORE ANSWERING]\n"
+            + "\n".join(self_checks)
+            + "\nReturn only the corrected translation in the target language."
         )
 
     def _restore_markdown_structure(self, mt_draft: str, edited: str) -> str:
@@ -432,7 +447,7 @@ class LLMPostEditor:
         """Trim inputs to reduce prompt size when a max_chars budget is set."""
         if self.max_chars is None:
             return source_text, mt_draft
-        budget = int(self.max_chars * 0.45)
+        budget = int(self.max_chars * 0.4)
         budget = max(budget, 1)
         trimmed_source = source_text[:budget]
         trimmed_mt = mt_draft[:budget]
