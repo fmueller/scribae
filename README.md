@@ -1,4 +1,4 @@
-[![Build & Test](https://github.com/scribae/scribae/actions/workflows/build.yml/badge.svg)](https://github.com/scribae/scribae/actions/workflows/build.yml)
+[![Build](https://github.com/fmueller/scribae/actions/workflows/build.yml/badge.svg)](https://github.com/fmueller/scribae/actions/workflows/build.yml)
 
 # Scribae
 
