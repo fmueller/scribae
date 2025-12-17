@@ -14,6 +14,7 @@ from pydantic_ai.settings import ModelSettings
 
 from .brief import SeoBrief
 from .io_utils import NoteDetails, load_note
+from .language import LanguageMismatchError, LanguageResolutionError, ensure_language_output, resolve_output_language
 from .llm import LLM_TIMEOUT_SECONDS, make_model
 from .project import ProjectConfig
 from .prompts_writer import SYSTEM_PROMPT, build_user_prompt
@@ -52,6 +53,7 @@ class WritingContext:
     note: NoteDetails
     brief: SeoBrief
     project: ProjectConfig
+    language: str
 
 
 @dataclass(frozen=True)
@@ -76,6 +78,8 @@ def prepare_context(
     brief_path: Path,
     project: ProjectConfig,
     max_chars: int,
+    language: str | None = None,
+    language_detector: Callable[[str], str] | None = None,
     reporter: Reporter = None,
 ) -> WritingContext:
     """Load source artifacts needed for writing."""
@@ -94,7 +98,29 @@ def prepare_context(
     brief = _load_brief(brief_path)
 
     _report(reporter, f"Loaded note '{note.title}' and brief '{brief.title}'.")
-    return WritingContext(note=note, brief=brief, project=project)
+
+    try:
+        language_resolution = resolve_output_language(
+            flag_language=language,
+            project_language=project.get("language"),
+            metadata=note.metadata,
+            text=note.body,
+            language_detector=language_detector,
+        )
+    except LanguageResolutionError as exc:
+        raise WritingValidationError(str(exc)) from exc
+
+    _report(
+        reporter,
+        f"Resolved output language: {language_resolution.language} (source: {language_resolution.source})",
+    )
+
+    return WritingContext(
+        note=note,
+        brief=brief,
+        project=project,
+        language=language_resolution.language,
+    )
 
 
 def outline_sections(brief: SeoBrief, *, section_range: tuple[int, int] | None = None) -> list[SectionSpec]:
@@ -163,6 +189,7 @@ def build_prompt_for_section(
         section_title=section.title,
         note_snippets=snippets.text,
         evidence_required=evidence_required,
+        language=context.language,
     )
     return prompt, snippets
 
@@ -188,6 +215,7 @@ def generate_article(
     section_range: tuple[int, int] | None = None,
     reporter: Reporter = None,
     save_prompt_dir: Path | None = None,
+    language_detector: Callable[[str], str] | None = None,
 ) -> str:
     """Generate the Markdown body for the requested sections."""
     sections = outline_sections(context.brief, section_range=section_range)
@@ -206,7 +234,21 @@ def generate_article(
         if evidence_required and snippets.matches == 0:
             body = "(no supporting evidence in the note)"
         else:
-            body = _invoke_model(prompt, model_name=model_name, temperature=temperature)
+            try:
+                body = ensure_language_output(
+                    prompt=prompt,
+                    expected_language=context.language,
+                    invoke=lambda prompt: _invoke_model(
+                        prompt, model_name=model_name, temperature=temperature
+                    ),
+                    extract_text=lambda text: text,
+                    reporter=reporter,
+                    language_detector=language_detector,
+                )
+            except LanguageMismatchError as exc:
+                raise WritingValidationError(str(exc)) from exc
+            except LanguageResolutionError as exc:
+                raise WritingValidationError(str(exc)) from exc
         cleaned_body = _sanitize_section(body)
         results.append(SectionResult(spec=section, body=cleaned_body))
 

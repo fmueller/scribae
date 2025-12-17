@@ -25,6 +25,7 @@ def build_user_prompt(
     section_title: str,
     note_snippets: str,
     evidence_required: bool,
+    language: str,
 ) -> str:
     """Render the structured user prompt for a single outline section."""
     keywords = ", ".join(project["keywords"]) if project["keywords"] else "none"
@@ -50,6 +51,7 @@ def build_user_prompt(
         Audience: {audience}
         Tone: {tone}
         Language: {language}
+        Output directive: write this section in language code '{language}'.
         FocusKeywords: {keywords}
 
         [ARTICLE CONTEXT]
@@ -69,7 +71,7 @@ def build_user_prompt(
         domain=project["domain"],
         audience=project["audience"],
         tone=project["tone"],
-        language=project["language"],
+        language=language,
         keywords=keywords,
         h1=brief.h1,
         section_title=section_title,

@@ -65,13 +65,20 @@ class PromptBundle:
     user_prompt: str
 
 
-def build_prompt_bundle(*, project: ProjectConfig, note_title: str, note_content: str) -> PromptBundle:
+def build_prompt_bundle(
+    *, project: ProjectConfig, note_title: str, note_content: str, language: str
+) -> PromptBundle:
     """Create the prompt bundle for the SEO brief request."""
-    user_prompt = build_user_prompt(project=project, note_title=note_title, note_content=note_content)
+    user_prompt = build_user_prompt(
+        project=project,
+        note_title=note_title,
+        note_content=note_content,
+        language=language,
+    )
     return PromptBundle(system_prompt=SYSTEM_PROMPT, user_prompt=user_prompt)
 
 
-def build_user_prompt(*, project: ProjectConfig, note_title: str, note_content: str) -> str:
+def build_user_prompt(*, project: ProjectConfig, note_title: str, note_content: str, language: str) -> str:
     """Assemble the structured user prompt with project context."""
     keywords = ", ".join(project["keywords"]) if project["keywords"] else "none"
 
@@ -83,6 +90,7 @@ def build_user_prompt(*, project: ProjectConfig, note_title: str, note_content: 
         Tone: {tone}
         FocusKeywords: {keywords}
         Language: {language}
+        Output directive: write the entire brief in language code '{language}'.
 
         [TASK]
         Create an SEO brief for an article derived strictly from the note below.
@@ -114,7 +122,7 @@ def build_user_prompt(*, project: ProjectConfig, note_title: str, note_content: 
         audience=project["audience"],
         tone=project["tone"],
         keywords=keywords,
-        language=project["language"],
+        language=language,
         note_title=note_title.strip(),
         note_content=note_content.strip(),
         schema_example=SCHEMA_EXAMPLE,
