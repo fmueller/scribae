@@ -7,10 +7,11 @@ from pydantic_ai.models.openai import OpenAIChatModel
 from pydantic_ai.providers.openai import OpenAIProvider
 from pydantic_ai.settings import ModelSettings
 
-DEFAULT_MODEL_NAME = "mistral-nemo"
+DEFAULT_MODEL_NAME = "ministral-3:8b"
 DEFAULT_BASE_URL = "http://localhost:11434/v1"
 DEFAULT_API_KEY = "no-key"
 LLM_OUTPUT_RETRIES = 2
+LLM_TIMEOUT_SECONDS = 300.0
 
 
 @dataclass(frozen=True)
@@ -48,5 +49,6 @@ __all__ = [
     "DEFAULT_BASE_URL",
     "DEFAULT_API_KEY",
     "LLM_OUTPUT_RETRIES",
+    "LLM_TIMEOUT_SECONDS",
     "make_model",
 ]

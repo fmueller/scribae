@@ -4,7 +4,8 @@ from pathlib import Path
 
 import typer
 
-from .idea import DEFAULT_IDEA_MODEL, IdeaError, generate_ideas, prepare_context, render_json, save_prompt_artifacts
+from .idea import IdeaError, generate_ideas, prepare_context, render_json, save_prompt_artifacts
+from .llm import DEFAULT_MODEL_NAME
 from .project import default_project, load_project
 
 
@@ -50,7 +51,7 @@ def idea_command(
         help="Project name used to load projects/<name>.yaml for prompt context.",
     ),
     model: str = typer.Option(  # noqa: B008
-        DEFAULT_IDEA_MODEL,
+        DEFAULT_MODEL_NAME,
         "--model",
         "-m",
         help="OpenAI/Ollama model name to request.",

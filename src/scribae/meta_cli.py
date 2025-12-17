@@ -4,8 +4,8 @@ from pathlib import Path
 
 import typer
 
+from .llm import DEFAULT_MODEL_NAME
 from .meta import (
-    DEFAULT_META_MODEL,
     ArticleMeta,
     MetaBriefError,
     MetaError,
@@ -46,7 +46,7 @@ def meta_command(
         help="Project name used to load projects/<name>.yaml for prompt context.",
     ),
     model: str = typer.Option(  # noqa: B008
-        DEFAULT_META_MODEL,
+        DEFAULT_MODEL_NAME,
         "--model",
         "-m",
         help="OpenAI/Ollama model name to request.",

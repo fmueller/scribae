@@ -8,6 +8,7 @@ from typing import Any
 import typer
 import yaml
 
+from scribae.llm import DEFAULT_MODEL_NAME
 from scribae.project import load_project
 from scribae.translate import (
     LLMPostEditor,
@@ -109,7 +110,7 @@ def translate(
         help="Additional regex patterns to protect.",
     ),
     postedit_model: str = typer.Option(  # noqa: B008
-        "mistral-nemo",
+        DEFAULT_MODEL_NAME,
         "--postedit-model",
         help="Model name for post-edit LLM pass.",
     ),

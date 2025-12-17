@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING, Any, Literal, cast
 from pydantic_ai import Agent, NativeOutput, UnexpectedModelBehavior
 from pydantic_ai.settings import ModelSettings
 
-from scribae.llm import LLM_OUTPUT_RETRIES, OpenAISettings, make_model
+from scribae.llm import DEFAULT_MODEL_NAME, LLM_OUTPUT_RETRIES, OpenAISettings, make_model
 
 from .markdown_segmenter import ProtectedText
 
@@ -43,7 +43,7 @@ class LLMPostEditor:
         self,
         agent: Agent[None, str] | None = None,
         *,
-        model_name: str = "mistral-nemo",
+        model_name: str = DEFAULT_MODEL_NAME,
         temperature: float = 0.2,
         create_agent: bool = True,
         max_chars: int | None = 4_000,

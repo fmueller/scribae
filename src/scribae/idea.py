@@ -14,11 +14,13 @@ from pydantic_ai import Agent, NativeOutput, UnexpectedModelBehavior
 from pydantic_ai.settings import ModelSettings
 
 from .io_utils import NoteDetails, load_note
-from .llm import DEFAULT_MODEL_NAME, LLM_OUTPUT_RETRIES, OpenAISettings, make_model
+from .llm import (
+    LLM_OUTPUT_RETRIES,
+    LLM_TIMEOUT_SECONDS,
+    OpenAISettings,
+    make_model,
+)
 from .project import ProjectConfig
-
-DEFAULT_IDEA_MODEL = DEFAULT_MODEL_NAME
-IDEA_TIMEOUT_SECONDS = 300.0
 
 
 class IdeaError(Exception):
@@ -138,7 +140,7 @@ def generate_ideas(
     reporter: Reporter = None,
     settings: OpenAISettings | None = None,
     agent: Agent[None, IdeaList] | None = None,
-    timeout_seconds: float = IDEA_TIMEOUT_SECONDS,
+    timeout_seconds: float = LLM_TIMEOUT_SECONDS,
 ) -> IdeaList:
     """Run the LLM call and return validated ideas."""
 
@@ -290,7 +292,6 @@ def _report(reporter: Reporter, message: str) -> None:
 
 
 __all__ = [
-    "DEFAULT_IDEA_MODEL",
     "Idea",
     "IdeaContext",
     "IdeaError",
