@@ -127,6 +127,7 @@ def _detect_language(text: str, language_detector: Callable[[str], str] | None) 
 
 
 def _default_language_detector() -> Callable[[str], str]:
+    copy_error = "Unable to avoid copy while creating an array as requested"
     try:
         import fast_langdetect  # type: ignore[import-untyped]
     except Exception as exc:  # pragma: no cover - defensive fallback
@@ -142,14 +143,20 @@ def _default_language_detector() -> Callable[[str], str]:
     def _detect(sample: str) -> str:
         try:
             results = detector.detect(sample, model="auto", k=1, threshold=0.0)
+        except ValueError as exc:
+            if copy_error in str(exc):
+                results = _detect_with_fasttext_copy_fix(detector, sample)
+            else:
+                return naive(sample)
         except Exception:
             return naive(sample)
         if not results:
             return naive(sample)
-        lang = results[0].get("lang")
+        first = results[0]
+        lang = first.get("lang") if isinstance(first, Mapping) else None
         if not isinstance(lang, str) or not lang:
             return naive(sample)
-        return lang
+        return normalize_language(lang)
 
     return _detect
 
@@ -176,6 +183,34 @@ def _clean_language(value: Any) -> str | None:
 def _report(reporter: Callable[[str], None] | None, message: str) -> None:
     if reporter:
         reporter(message)
+
+
+def _detect_with_fasttext_copy_fix(detector: Any, text: str) -> list[dict[str, object]]:
+    try:
+        ft_model = detector._get_model(low_memory=False, fallback_on_memory_error=True)
+        processed = detector._preprocess_text(text)
+        normalized = detector._normalize_text(processed, detector.config.normalize_input)
+    except Exception:
+        return []
+
+    if "\n" in normalized:
+        return []
+
+    raw_predictor = getattr(ft_model, "f", None)
+    if raw_predictor is None or not hasattr(raw_predictor, "predict"):
+        return []
+
+    try:
+        predictions = raw_predictor.predict(f"{normalized}\n", 1, 0.0, "strict")
+    except Exception:
+        return []
+
+    if not predictions:
+        return []
+
+    scored = [(str(label).replace("__label__", ""), min(float(score), 1.0)) for score, label in predictions]
+    scored.sort(key=lambda item: item[1], reverse=True)
+    return [{"lang": label, "score": score} for label, score in scored]
 
 
 __all__ = [
