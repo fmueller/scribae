@@ -115,6 +115,12 @@ def idea_command(
     reporter = (lambda msg: typer.secho(msg, err=True)) if verbose else None
     project_config = default_project()
     project_label = "default"
+    if not project:
+        typer.secho(
+            "No project provided; using default context (language=en, tone=neutral).",
+            err=True,
+            fg=typer.colors.YELLOW,
+        )
 
     if project:
         try:
