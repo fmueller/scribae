@@ -7,6 +7,7 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
+from typing import cast
 
 from pydantic import ValidationError
 from pydantic_ai import Agent
@@ -14,7 +15,13 @@ from pydantic_ai.settings import ModelSettings
 
 from .brief import SeoBrief
 from .io_utils import NoteDetails, load_note
-from .language import LanguageMismatchError, LanguageResolutionError, ensure_language_output, resolve_output_language
+from .language import (
+    LanguageMismatchError,
+    LanguageResolutionError,
+    ensure_language_output,
+    normalize_language,
+    resolve_output_language,
+)
 from .llm import LLM_TIMEOUT_SECONDS, make_model
 from .project import ProjectConfig
 from .prompts_writer import SYSTEM_PROMPT, build_user_prompt
@@ -228,6 +235,15 @@ def generate_article(
     results: list[SectionResult] = []
 
     for section in sections:
+        corrected_title = _ensure_section_title_language(
+            section.title,
+            expected_language=context.language,
+            model_name=model_name,
+            temperature=temperature,
+            language_detector=language_detector,
+            reporter=reporter,
+        )
+        section = SectionSpec(title=corrected_title, index=section.index)
         prompt, snippets = build_prompt_for_section(context, section, evidence_required=evidence_required)
         _report(reporter, f"Generating section {section.index}: {section.title}")
 
@@ -316,6 +332,51 @@ def _sanitize_section(body: str) -> str:
         cleaned_lines.append(stripped)
     cleaned = "\n".join(cleaned_lines).strip()
     return cleaned or "(no content generated)"
+
+
+def _ensure_section_title_language(
+    title: str,
+    *,
+    expected_language: str,
+    model_name: str,
+    temperature: float,
+    language_detector: Callable[[str], str] | None,
+    reporter: Reporter,
+) -> str:
+    """Ensure the outline title matches the expected language, correcting via LLM if needed."""
+    stripped = title.strip()
+    if not stripped:
+        return stripped
+
+    try:
+        detection = resolve_output_language(
+            flag_language=None,
+            project_language=None,
+            metadata=None,
+            text=stripped,
+            language_detector=language_detector,
+        )
+        if normalize_language(detection.language) == normalize_language(expected_language):
+            return stripped
+    except LanguageResolutionError:
+        # Fall back to a correction path below on any detection issues
+        pass
+
+    prompt = (
+        "Rewrite the following section title strictly in language code "
+        f"'{expected_language}'. Return only the title, no quotes, no Markdown heading markers.\n\n"
+        f"TITLE:\n{stripped}"
+    )
+
+    corrected = ensure_language_output(
+        prompt=prompt,
+        expected_language=expected_language,
+        invoke=lambda prompt: _invoke_model(prompt, model_name=model_name, temperature=temperature),
+        extract_text=lambda text: text,
+        reporter=reporter,
+        language_detector=language_detector,
+    )
+    return cast(str, corrected).strip()
 
 
 def _assemble_markdown(sections: Sequence[SectionResult]) -> str:
