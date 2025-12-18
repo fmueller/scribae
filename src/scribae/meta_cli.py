@@ -130,6 +130,12 @@ def meta_command(
         raise typer.BadParameter("Choose an output destination with --out.", param_hint="--out")
 
     project_config = default_project()
+    if not project:
+        typer.secho(
+            "No project provided; using default context (language=en, tone=neutral).",
+            err=True,
+            fg=typer.colors.YELLOW,
+        )
     if project:
         try:
             project_config = load_project(project)
