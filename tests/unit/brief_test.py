@@ -11,7 +11,7 @@ from scribae.brief import BriefingContext, BriefValidationError, NoteDetails, Op
 from scribae.llm import DEFAULT_API_KEY as DEFAULT_OPENAI_API_KEY
 from scribae.llm import DEFAULT_BASE_URL as DEFAULT_OPENAI_BASE_URL
 from scribae.project import default_project
-from scribae.prompts import PromptBundle
+from scribae.prompts.brief import PromptBundle
 
 
 def _base_payload(fake: Faker) -> dict[str, Any]:
