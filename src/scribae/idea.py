@@ -53,11 +53,12 @@ class Idea(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
+    id: str = Field(..., min_length=3)
     title: str = Field(..., min_length=3)
     description: str = Field(..., min_length=10)
     why: str = Field(..., min_length=5)
 
-    @field_validator("title", "description", "why", mode="before")
+    @field_validator("id", "title", "description", "why", mode="before")
     @classmethod
     def _strip_text(cls, value: str) -> str:
         if not isinstance(value, str):

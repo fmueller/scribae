@@ -1,3 +1,4 @@
+import json
 import os
 from pathlib import Path
 from typing import Any
@@ -7,7 +8,16 @@ from faker import Faker
 from pydantic import ValidationError
 from pydantic_ai import UnexpectedModelBehavior
 
-from scribae.brief import BriefingContext, BriefValidationError, NoteDetails, OpenAISettings, SeoBrief, generate_brief
+from scribae.brief import (
+    BriefingContext,
+    BriefValidationError,
+    NoteDetails,
+    OpenAISettings,
+    SeoBrief,
+    generate_brief,
+    prepare_context,
+)
+from scribae.idea import Idea, IdeaList
 from scribae.llm import DEFAULT_API_KEY as DEFAULT_OPENAI_API_KEY
 from scribae.llm import DEFAULT_BASE_URL as DEFAULT_OPENAI_BASE_URL
 from scribae.project import default_project
@@ -90,7 +100,7 @@ def _briefing_context(fake: Faker) -> BriefingContext:
         max_chars=1000,
     )
     prompts = PromptBundle(system_prompt="system", user_prompt="prompt")
-    return BriefingContext(note=note, project=default_project(), prompts=prompts, language="en")
+    return BriefingContext(note=note, idea=None, project=default_project(), prompts=prompts, language="en")
 
 
 def test_generate_brief_returns_structured_result(monkeypatch: pytest.MonkeyPatch, fake: Faker) -> None:
@@ -163,3 +173,57 @@ def test_openai_settings_from_env_uses_defaults(monkeypatch: pytest.MonkeyPatch)
 
     assert settings.base_url == DEFAULT_OPENAI_BASE_URL
     assert settings.api_key == DEFAULT_OPENAI_API_KEY
+
+
+def test_prepare_context_selects_idea_from_metadata(tmp_path: Path, fake: Faker) -> None:
+    note = tmp_path / "note.md"
+    idea_id = fake.slug()
+    note.write_text(f"---\nidea_id: {idea_id}\n---\n\n{fake.paragraph()}\n", encoding="utf-8")
+
+    ideas = IdeaList(
+        ideas=[
+            Idea(id=idea_id, title=fake.sentence(nb_words=6), description=fake.paragraph(), why=fake.sentence()),
+            Idea(
+                id=fake.slug(),
+                title=fake.sentence(nb_words=6),
+                description=fake.paragraph(),
+                why=fake.sentence(),
+            ),
+        ]
+    )
+    ideas_path = tmp_path / "ideas.json"
+    ideas_path.write_text(json.dumps(ideas.model_dump()), encoding="utf-8")
+
+    context = prepare_context(
+        note_path=note,
+        project=default_project(),
+        max_chars=1000,
+        ideas_path=ideas_path,
+    )
+
+    assert context.idea is not None
+    assert context.idea.id == idea_id
+
+
+def test_prepare_context_requires_idea_selection_when_multiple(tmp_path: Path, fake: Faker) -> None:
+    note = tmp_path / "note.md"
+    note.write_text(fake.paragraph(), encoding="utf-8")
+
+    ideas = IdeaList(
+        ideas=[
+            Idea(id=fake.slug(), title=fake.sentence(nb_words=6), description=fake.paragraph(), why=fake.sentence()),
+            Idea(id=fake.slug(), title=fake.sentence(nb_words=6), description=fake.paragraph(), why=fake.sentence()),
+        ]
+    )
+    ideas_path = tmp_path / "ideas.json"
+    ideas_path.write_text(json.dumps(ideas.model_dump()), encoding="utf-8")
+
+    with pytest.raises(BriefValidationError) as excinfo:
+        prepare_context(
+            note_path=note,
+            project=default_project(),
+            max_chars=1000,
+            ideas_path=ideas_path,
+        )
+
+    assert "--idea-id" in str(excinfo.value) or "idea_id" in str(excinfo.value)

@@ -9,8 +9,9 @@ IDEA_SYSTEM_PROMPT = textwrap.dedent(
     """
     You are a creative strategist who proposes concise, audience-aware content ideas.
     Output must be a pure JSON object with an "ideas" array, no prose or Markdown.
-    Each idea object must include exactly these fields: "title", "description", "why".
+    Each idea object must include exactly these fields: "id", "title", "description", "why".
     Keep titles concise and avoid numbered prefixes.
+    Generate a short, stable id for each idea (lowercase slug with hyphens).
     """
 ).strip()
 
@@ -57,6 +58,7 @@ def build_user_prompt(*, project: ProjectConfig, note_title: str, note_content: 
         [TASK]
         Propose 5–8 content ideas grounded in the note. Avoid generic listicles or duplicative angles.
         Each idea must include:
+        - id: short slug (lowercase, hyphenated) that is stable and unique within this list.
         - title: 5–12 words capturing the core hook.
         - description: 2–3 sentences describing the article or asset.
         - why: 1–2 sentences explaining why this idea fits the audience and project goals.

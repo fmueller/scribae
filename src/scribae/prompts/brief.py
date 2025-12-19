@@ -3,6 +3,7 @@ from __future__ import annotations
 import textwrap
 from dataclasses import dataclass
 
+from scribae.idea import Idea
 from scribae.project import ProjectConfig
 
 SYSTEM_PROMPT = textwrap.dedent(
@@ -66,7 +67,7 @@ class PromptBundle:
 
 
 def build_prompt_bundle(
-    *, project: ProjectConfig, note_title: str, note_content: str, language: str
+    *, project: ProjectConfig, note_title: str, note_content: str, language: str, idea: Idea | None = None
 ) -> PromptBundle:
     """Create the prompt bundle for the SEO brief request."""
     user_prompt = build_user_prompt(
@@ -74,13 +75,40 @@ def build_prompt_bundle(
         note_title=note_title,
         note_content=note_content,
         language=language,
+        idea=idea,
     )
     return PromptBundle(system_prompt=SYSTEM_PROMPT, user_prompt=user_prompt)
 
 
-def build_user_prompt(*, project: ProjectConfig, note_title: str, note_content: str, language: str) -> str:
+def build_user_prompt(
+    *,
+    project: ProjectConfig,
+    note_title: str,
+    note_content: str,
+    language: str,
+    idea: Idea | None = None,
+) -> str:
     """Assemble the structured user prompt with project context."""
     keywords = ", ".join(project["keywords"]) if project["keywords"] else "none"
+    idea_block = ""
+    idea_guidance = ""
+    if idea is not None:
+        idea_block = textwrap.dedent(
+            f"""\
+            [IDEA]
+            Id: {idea.id}
+            Title: {idea.title}
+            Description: {idea.description}
+            Why: {idea.why}
+            """
+        ).strip()
+        idea_guidance = textwrap.dedent(
+            """\
+            [IDEA GUIDANCE]
+            Use the idea above as the anchor for title, h1, angle, search intent, and outline.
+            Keep the brief faithful to the idea's description and rationale.
+            """
+        ).strip()
 
     template = textwrap.dedent(
         """\
@@ -97,6 +125,9 @@ def build_user_prompt(*, project: ProjectConfig, note_title: str, note_content: 
         Return JSON matching the SeoBrief schema exactly.
         Expand the outline to cover 6–10 sections.
         Provide 2–5 FAQ entries, each containing a question and answer (aim for 3).
+
+        {idea_block}
+        {idea_guidance}
 
         [FAQ RULES]
         - Every FAQ item must be an object with "question" and "answer" strings.
@@ -126,6 +157,8 @@ def build_user_prompt(*, project: ProjectConfig, note_title: str, note_content: 
         note_title=note_title.strip(),
         note_content=note_content.strip(),
         schema_example=SCHEMA_EXAMPLE,
+        idea_block=idea_block,
+        idea_guidance=idea_guidance,
     )
 
 

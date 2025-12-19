@@ -1,6 +1,7 @@
 from faker import Faker
 
 from scribae.brief import FaqItem, SeoBrief
+from scribae.idea import Idea
 from scribae.project import ProjectConfig
 from scribae.prompts.brief import SYSTEM_PROMPT, build_prompt_bundle, build_user_prompt
 from scribae.prompts.write import build_user_prompt as build_writer_prompt
@@ -99,3 +100,34 @@ def test_writer_prompt_contains_language_directive(fake: Faker) -> None:
     )
 
     assert "write this section in language code 'es-ES'" in prompt
+
+
+def test_build_user_prompt_includes_idea_block(fake: Faker) -> None:
+    project: ProjectConfig = {
+        "site_name": fake.company(),
+        "domain": fake.url(),
+        "audience": fake.sentence(nb_words=3),
+        "tone": fake.word(),
+        "keywords": [],
+        "language": "en",
+        "allowed_tags": None,
+    }
+
+    idea = Idea(
+        id=fake.slug(),
+        title=fake.sentence(nb_words=6),
+        description=fake.paragraph(),
+        why=fake.sentence(),
+    )
+
+    prompt = build_user_prompt(
+        project=project,
+        note_title=fake.sentence(nb_words=3),
+        note_content=fake.paragraph(),
+        language=project["language"],
+        idea=idea,
+    )
+
+    assert "[IDEA]" in prompt
+    assert idea.title in prompt
+    assert idea.id in prompt

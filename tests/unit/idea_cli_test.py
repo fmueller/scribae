@@ -31,7 +31,12 @@ def note_body(note_file: Path) -> str:
 
 def _fake_ideas(fake: Faker) -> IdeaList:
     ideas = [
-        Idea(title=fake.sentence(nb_words=6), description=fake.paragraph(), why=fake.sentence())
+        Idea(
+            id=fake.slug(),
+            title=fake.sentence(nb_words=6),
+            description=fake.paragraph(),
+            why=fake.sentence(),
+        )
         for _ in range(3)
     ]
     return IdeaList(ideas=ideas)
@@ -56,6 +61,7 @@ def test_idea_prints_json(monkeypatch: pytest.MonkeyPatch, note_file: Path, fake
     assert "ideas" in payload and len(payload["ideas"]) == len(ideas.ideas)
     assert payload["ideas"][0]["title"] == ideas.ideas[0].title
     assert payload["ideas"][0]["why"] == ideas.ideas[0].why
+    assert payload["ideas"][0]["id"] == ideas.ideas[0].id
 
 
 def test_idea_writes_to_file(monkeypatch: pytest.MonkeyPatch, note_file: Path, tmp_path: Path, fake: Faker) -> None:
@@ -69,7 +75,7 @@ def test_idea_writes_to_file(monkeypatch: pytest.MonkeyPatch, note_file: Path, t
     assert output_path.exists()
     saved = json.loads(output_path.read_text(encoding="utf-8"))
     assert isinstance(saved, dict) and "ideas" in saved and len(saved["ideas"]) == len(ideas.ideas)
-    assert all(set(entry) == {"title", "description", "why"} for entry in saved["ideas"])
+    assert all(set(entry) == {"id", "title", "description", "why"} for entry in saved["ideas"])
     assert "Wrote ideas" in result.stdout
 
 
