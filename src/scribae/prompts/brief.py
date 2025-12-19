@@ -3,7 +3,7 @@ from __future__ import annotations
 import textwrap
 from dataclasses import dataclass
 
-from .project import ProjectConfig
+from scribae.project import ProjectConfig
 
 SYSTEM_PROMPT = textwrap.dedent(
     """\
@@ -127,3 +127,12 @@ def build_user_prompt(*, project: ProjectConfig, note_title: str, note_content: 
         note_content=note_content.strip(),
         schema_example=SCHEMA_EXAMPLE,
     )
+
+
+__all__ = [
+    "SYSTEM_PROMPT",
+    "SCHEMA_EXAMPLE",
+    "PromptBundle",
+    "build_prompt_bundle",
+    "build_user_prompt",
+]

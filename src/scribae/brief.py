@@ -17,7 +17,7 @@ from .io_utils import NoteDetails, load_note
 from .language import LanguageMismatchError, LanguageResolutionError, ensure_language_output, resolve_output_language
 from .llm import LLM_OUTPUT_RETRIES, LLM_TIMEOUT_SECONDS, OpenAISettings, make_model
 from .project import ProjectConfig
-from .prompts import SYSTEM_PROMPT, PromptBundle, build_prompt_bundle
+from .prompts.brief import SYSTEM_PROMPT, PromptBundle, build_prompt_bundle
 
 __all__ = [
     # re-exports for tests and public API

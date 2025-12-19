@@ -3,7 +3,6 @@ from __future__ import annotations
 import asyncio
 import json
 import re
-import textwrap
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
@@ -19,6 +18,12 @@ from .brief import SeoBrief
 from .language import LanguageMismatchError, LanguageResolutionError, ensure_language_output, resolve_output_language
 from .llm import LLM_OUTPUT_RETRIES, LLM_TIMEOUT_SECONDS, OpenAISettings, make_model
 from .project import ProjectConfig
+from .prompts.meta import (
+    META_SYSTEM_PROMPT,
+    META_USER_PROMPT_TEMPLATE,
+    MetaPromptBundle,
+    build_meta_prompt_bundle,
+)
 
 Reporter = Callable[[str], None] | None
 
@@ -151,67 +156,9 @@ class MetaContext:
     language: str
 
 
-@dataclass(frozen=True)
-class PromptBundle:
-    """Container for meta prompts."""
-
-    system_prompt: str
-    user_prompt: str
-
-
-SYSTEM_PROMPT = textwrap.dedent(
-    """\
-    You are a content metadata assistant for blog articles.
-
-    Your job is to create final, publication-ready metadata for an article.
-    You MUST output pure JSON that matches the ArticleMeta schema.
-    Do not add comments, markdown, or any extra fields.
-
-    Respect the overwrite mode:
-    - overwrite=none: do not change existing metadata; fill only obviously missing fields if necessary.
-    - overwrite=missing: keep existing fields and only fill missing or empty ones.
-    - overwrite=all: you may revise any field to better fit the article and context.
-
-    Rules:
-    - tags: 4–8 concise kebab-case labels that fit the article and site's taxonomy.
-    - slug: short, lowercase, URL-safe (a-z, 0-9, hyphens only).
-    - excerpt: short teaser or meta-description (max 200 characters), no markdown.
-    - language: ISO code like "de" or "en".
-    - reading_time: reasonable estimate in minutes for an average adult reader.
-    """
-).strip()
-
-USER_PROMPT_TEMPLATE = textwrap.dedent(
-    """\
-    [PROJECT CONTEXT]
-    Site: {site_name} ({domain})
-    Audience: {audience}
-    Tone: {tone}
-    ResolvedLanguage: {language}
-    Output directive: respond entirely in language code '{language}'.
-    ProjectKeywords: {project_keywords}
-    AllowedTags: {allowed_tags}
-
-    [BRIEF CONTEXT]
-    {brief_context}
-
-    [EXISTING METADATA SNAPSHOT]
-    OverwriteMode: {overwrite_mode}
-
-    Current ArticleMeta (pre-LLM, from frontmatter and heuristics):
-    {current_article_meta_json}
-
-    [ARTICLE BODY EXCERPT]
-    Below is the article body text (without frontmatter), truncated to a safe length:
-    ---
-    {body_excerpt}
-    ---
-
-    [TASK]
-    Using the context above, return a single JSON object that matches the ArticleMeta schema.
-    Apply the overwrite rules and metadata rules defined in the system prompt.
-    """
-).strip()
+PromptBundle = MetaPromptBundle
+SYSTEM_PROMPT = META_SYSTEM_PROMPT
+USER_PROMPT_TEMPLATE = META_USER_PROMPT_TEMPLATE
 
 
 def prepare_context(
@@ -264,26 +211,10 @@ def prepare_context(
     )
 
 
-def build_prompt_bundle(context: MetaContext) -> PromptBundle:
+def build_prompt_bundle(context: MetaContext) -> MetaPromptBundle:
     """Render the system and user prompts for the metadata agent."""
-    brief_context = _render_brief_context(context.brief)
-    current_meta_json = json.dumps(context.current_meta, indent=2, ensure_ascii=False)
-    allowed_tags = context.project.get("allowed_tags") or "not specified"
-    keywords = context.project.get("keywords") or []
-    prompt = USER_PROMPT_TEMPLATE.format(
-        site_name=context.project["site_name"],
-        domain=context.project["domain"],
-        audience=context.project["audience"],
-        tone=context.project["tone"],
-        language=context.language,
-        project_keywords=", ".join(keywords) if keywords else "none",
-        allowed_tags=allowed_tags if isinstance(allowed_tags, str) else ", ".join(allowed_tags),
-        brief_context=brief_context,
-        overwrite_mode=context.overwrite,
-        current_article_meta_json=current_meta_json,
-        body_excerpt=context.body.excerpt,
-    )
-    return PromptBundle(system_prompt=SYSTEM_PROMPT, user_prompt=prompt)
+
+    return build_meta_prompt_bundle(context)
 
 
 def render_dry_run_prompt(context: MetaContext) -> str:
@@ -583,20 +514,6 @@ def _merge_frontmatter(meta: ArticleMeta, original: dict[str, Any], *, overwrite
             if key not in merged:
                 merged[key] = value
     return merged
-
-
-def _render_brief_context(brief: SeoBrief | None) -> str:
-    if brief is None:
-        return "No SeoBrief provided."
-    return textwrap.dedent(
-        f"""\
-        BriefTitle: {brief.title}
-        PrimaryKeyword: {brief.primary_keyword}
-        SecondaryKeywords: {", ".join(brief.secondary_keywords)}
-        PlannedSearchIntent: {brief.search_intent}
-        PlannedMetaDescription: {brief.meta_description}
-        """
-    ).strip()
 
 
 def _create_agent(model_name: str, temperature: float) -> Agent[None, ArticleMeta]:

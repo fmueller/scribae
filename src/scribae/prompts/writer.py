@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import textwrap
 
-from .brief import SeoBrief
-from .project import ProjectConfig
+from scribae.brief import SeoBrief
+from scribae.project import ProjectConfig
 
 SYSTEM_PROMPT = textwrap.dedent(
     """\
