@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from scribae import writer
+from scribae import write
 from scribae.project import default_project
 
 
@@ -38,9 +38,9 @@ def test_section_title_language_correction(monkeypatch: pytest.MonkeyPatch, note
     def detector(text: str) -> str:
         return "en" if "Observability" in text and "Einführung" not in text else "de"
 
-    monkeypatch.setattr("scribae.writer._invoke_model", fake_invoke)
+    monkeypatch.setattr("scribae.write._invoke_model", fake_invoke)
 
-    context = writer.prepare_context(
+    context = write.prepare_context(
         note_path=note_path,
         brief_path=brief_path,
         project=default_project(),
@@ -49,7 +49,7 @@ def test_section_title_language_correction(monkeypatch: pytest.MonkeyPatch, note
         language_detector=detector,
     )
 
-    article = writer.generate_article(
+    article = write.generate_article(
         context,
         model_name="gpt-test",
         temperature=0.1,

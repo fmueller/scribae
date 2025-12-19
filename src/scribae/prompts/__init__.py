@@ -2,7 +2,7 @@
 
 __all__ = [
     "brief",
-    "writer",
+    "write",
     "idea",
     "meta",
 ]

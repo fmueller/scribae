@@ -6,7 +6,7 @@ import pytest
 from typer.testing import CliRunner
 
 from scribae.main import app
-from scribae.writer import WritingLLMError
+from scribae.write import WritingLLMError
 
 runner = CliRunner()
 
@@ -43,7 +43,7 @@ class RecordingLLM:
 @pytest.fixture()
 def recording_llm(monkeypatch: pytest.MonkeyPatch) -> RecordingLLM:
     recorder = RecordingLLM()
-    monkeypatch.setattr("scribae.writer._invoke_model", recorder)
+    monkeypatch.setattr("scribae.write._invoke_model", recorder)
     return recorder
 
 
@@ -168,7 +168,7 @@ def test_llm_error_handling(monkeypatch: pytest.MonkeyPatch, note_path: Path, br
     def _boom(*_: object, **__: object) -> str:
         raise WritingLLMError("upstream failure")
 
-    monkeypatch.setattr("scribae.writer._invoke_model", _boom)
+    monkeypatch.setattr("scribae.write._invoke_model", _boom)
 
     result = runner.invoke(
         app,

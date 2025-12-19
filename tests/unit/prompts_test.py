@@ -3,7 +3,7 @@ from faker import Faker
 from scribae.brief import FaqItem, SeoBrief
 from scribae.project import ProjectConfig
 from scribae.prompts.brief import SYSTEM_PROMPT, build_prompt_bundle, build_user_prompt
-from scribae.prompts.writer import build_user_prompt as build_writer_prompt
+from scribae.prompts.write import build_user_prompt as build_writer_prompt
 
 
 def test_build_user_prompt_includes_project_details(fake: Faker) -> None:

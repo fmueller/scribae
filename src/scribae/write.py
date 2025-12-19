@@ -24,7 +24,7 @@ from .language import (
 )
 from .llm import LLM_TIMEOUT_SECONDS, make_model
 from .project import ProjectConfig
-from .prompts.writer import SYSTEM_PROMPT, build_user_prompt
+from .prompts.write import SYSTEM_PROMPT, build_user_prompt
 from .snippets import SnippetSelection, build_snippet_block
 
 Reporter = Callable[[str], None] | None

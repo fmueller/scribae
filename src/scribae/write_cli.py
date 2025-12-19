@@ -6,7 +6,7 @@ import typer
 
 from .llm import DEFAULT_MODEL_NAME
 from .project import default_project, load_project
-from .writer import (
+from .write import (
     EvidenceMode,
     WritingError,
     WritingValidationError,
