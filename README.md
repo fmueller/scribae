@@ -44,6 +44,28 @@ Scribae is a Typer-powered CLI that turns local Markdown notes into structured S
   ```
 - Other commands follow the same pattern (`scribae meta`, `scribae translate`, `scribae idea`). Add `--verbose` to stream progress and `--save-prompt` on `brief` to persist prompt snapshots.
 
+## Use cases
+- **Idea discovery.** Start with a note and generate a structured list of candidate articles. Use `--project` to pull defaults, `--language` or `--model` to override them, and `--json`/`--out` to choose stdout vs file output. `--dry-run` prints the prompt without calling a model.
+  ```bash
+  uv run scribae idea --note notes.md --project demo --out ideas.json
+  ```
+- **SEO brief creation.** Convert a note (optionally anchored to an idea) into a validated brief. Select ideas with `--ideas` plus `--idea-id`/`--idea-index`, or generate multiple briefs with `--idea-all --out-dir`. Use `--json` for stdout, `--out` for a file, and `--save-prompt` to persist prompt artifacts.
+  ```bash
+  uv run scribae brief --note notes.md --ideas ideas.json --idea-index 1 --out brief.json
+  ```
+- **Draft writing.** Turn a note + brief into a draft. Use `--section N..M` to draft only part of the outline, `--evidence required` for citations, and `--dry-run` to preview the first prompt. Write to `--out` or rely on stdout.
+  ```bash
+  uv run scribae write --note notes.md --brief brief.json --section 1..3 --out draft.md
+  ```
+- **Metadata generation.** Create JSON frontmatter or merge into an existing draft. `--format` controls json/frontmatter/both, `--overwrite` defines how existing fields are preserved, and `--out` selects the output file. `--force-llm-on-missing` keeps the model call even when preserving missing fields.
+  ```bash
+  uv run scribae meta --body draft.md --brief brief.json --format both --out meta.json
+  ```
+- **Translation and post-editing.** Translate markdown while preserving structure. Use `--src`/`--tgt` or `--project` for defaults, `--glossary` to lock terminology, `--postedit/--no-postedit` for LLM cleanup, and `--allow-pivot/--no-allow-pivot` to control English pivoting. `--debug` writes a `*.debug.json` report with segmented blocks and validation/post-edit stages next to the output (or input when writing to stdout).
+  ```bash
+  uv run scribae translate --src en --tgt de --in draft.md --out draft.de.md --debug
+  ```
+
 ## Testing
 Run the same checks as CI:
 ```bash
