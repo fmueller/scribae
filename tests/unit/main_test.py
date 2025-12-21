@@ -5,6 +5,7 @@ import pytest
 from faker import Faker
 from typer.testing import CliRunner
 
+from scribae import __version__
 from scribae.brief import FaqItem, SeoBrief
 from scribae.main import app
 
@@ -164,3 +165,10 @@ def test_brief_save_prompt_creates_files(
     assert note_snapshot.exists()
     assert "SYSTEM PROMPT" in prompt_file.read_text(encoding="utf-8")
     assert note_body in note_snapshot.read_text(encoding="utf-8")
+
+
+def test_version_command_outputs_version() -> None:
+    result = runner.invoke(app, ["version"])
+
+    assert result.exit_code == 0
+    assert result.stdout == f"scribae {__version__}\n"
