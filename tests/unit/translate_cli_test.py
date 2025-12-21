@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import re
 from pathlib import Path
 from typing import Any, cast
@@ -10,6 +11,7 @@ from typer.testing import CliRunner
 from scribae import project as project_module
 from scribae.main import app
 from scribae.translate import TranslationConfig
+from scribae.translate.markdown_segmenter import TextBlock
 
 runner = CliRunner()
 
@@ -43,6 +45,9 @@ def stub_translation_components(monkeypatch: pytest.MonkeyPatch) -> dict[str, An
     class DummySegmenter:
         def __init__(self, protected_patterns: list[str] | None = None) -> None:
             self.protected_patterns = protected_patterns or []
+
+        def segment(self, text: str) -> list[TextBlock]:
+            return [TextBlock(kind="paragraph", text=text)]
 
     class DummyPipeline:
         def __init__(
@@ -177,3 +182,58 @@ def test_translate_flags_override_project_defaults(
     assert cfg.source_lang == "en"
     assert cfg.tone.register == "casual"
     assert cfg.tone.audience == "gamers"
+
+
+def test_translate_debug_writes_report_for_output_path(
+    stub_translation_components: dict[str, Any],
+    tmp_path: Path,
+    input_markdown: Path,
+) -> None:
+    output_path = tmp_path / "translated.md"
+
+    result = runner.invoke(
+        app,
+        [
+            "translate",
+            "--src",
+            "en",
+            "--tgt",
+            "de",
+            "--in",
+            str(input_markdown),
+            "--out",
+            str(output_path),
+            "--debug",
+        ],
+    )
+
+    assert result.exit_code == 0
+    debug_path = output_path.with_suffix(output_path.suffix + ".debug.json")
+    assert debug_path.exists()
+
+    payload = json.loads(debug_path.read_text(encoding="utf-8"))
+    assert payload["blocks"] == [{"kind": "paragraph", "text": "Hello world", "meta": {}}]
+    assert payload["stages"] == []
+
+
+def test_translate_debug_writes_report_for_stdout_path(
+    stub_translation_components: dict[str, Any],
+    input_markdown: Path,
+) -> None:
+    result = runner.invoke(
+        app,
+        [
+            "translate",
+            "--src",
+            "en",
+            "--tgt",
+            "de",
+            "--in",
+            str(input_markdown),
+            "--debug",
+        ],
+    )
+
+    assert result.exit_code == 0
+    debug_path = input_markdown.with_suffix(input_markdown.suffix + ".debug.json")
+    assert debug_path.exists()
