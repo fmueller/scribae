@@ -4,6 +4,7 @@ from scribae.brief import FaqItem, SeoBrief
 from scribae.idea import Idea
 from scribae.project import ProjectConfig
 from scribae.prompts.brief import SYSTEM_PROMPT, build_prompt_bundle, build_user_prompt
+from scribae.prompts.write import build_faq_prompt
 from scribae.prompts.write import build_user_prompt as build_writer_prompt
 
 
@@ -100,6 +101,49 @@ def test_writer_prompt_contains_language_directive(fake: Faker) -> None:
     )
 
     assert "write this section in language code 'es-ES'" in prompt
+    assert "[FAQ CONTEXT]" in prompt
+    assert "What is this?" in prompt
+
+
+def test_faq_prompt_includes_targets(fake: Faker) -> None:
+    project: ProjectConfig = {
+        "site_name": fake.company(),
+        "domain": fake.url(),
+        "audience": fake.sentence(nb_words=3),
+        "tone": fake.word(),
+        "keywords": [],
+        "language": "en",
+        "allowed_tags": None,
+    }
+
+    brief = SeoBrief(
+        primary_keyword="alpha",
+        secondary_keywords=["beta"],
+        search_intent="informational",
+        audience="Audience text",
+        angle="Angle text",
+        title="Title text",
+        h1="Heading",
+        outline=["One", "Two", "Three", "Four", "Five", "Six"],
+        faq=[
+            FaqItem(question="What is this?", answer="This is a sufficiently long answer for testing."),
+            FaqItem(
+                question="Why now?",
+                answer="Because validation expects at least two entries with real text.",
+            ),
+        ],
+        meta_description="A sufficiently long meta description for testing FAQ prompts.",
+    )
+
+    prompt = build_faq_prompt(
+        project=project,
+        brief=brief,
+        note_snippets="notes",
+        language="en",
+    )
+
+    assert "[FAQ TARGETS]" in prompt
+    assert "What is this?" in prompt
 
 
 def test_build_user_prompt_includes_idea_block(fake: Faker) -> None:
