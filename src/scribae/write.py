@@ -24,7 +24,7 @@ from .language import (
 )
 from .llm import LLM_TIMEOUT_SECONDS, make_model
 from .project import ProjectConfig
-from .prompts.write import SYSTEM_PROMPT, build_user_prompt
+from .prompts.write import SYSTEM_PROMPT, build_faq_prompt, build_user_prompt
 from .snippets import SnippetSelection, build_snippet_block
 
 Reporter = Callable[[str], None] | None
@@ -220,6 +220,8 @@ def generate_article(
     temperature: float,
     evidence_required: bool,
     section_range: tuple[int, int] | None = None,
+    include_faq: bool = False,
+    write_faq: bool = False,
     reporter: Reporter = None,
     save_prompt_dir: Path | None = None,
     language_detector: Callable[[str], str] | None = None,
@@ -271,7 +273,30 @@ def generate_article(
         if save_prompt_dir is not None:
             _save_section_artifacts(save_prompt_dir, section, prompt, cleaned_body)
 
-    return _assemble_markdown(results)
+    article = _assemble_markdown(results)
+
+    if include_faq or write_faq:
+        faq_body, faq_prompt = _build_faq_body(
+            context,
+            model_name=model_name,
+            temperature=temperature,
+            reporter=reporter,
+            language_detector=language_detector,
+            write_faq=write_faq,
+        )
+        faq_section = f"## FAQ\n\n{faq_body}".rstrip()
+        article = f"{article.rstrip()}\n\n{faq_section}\n"
+
+        if save_prompt_dir is not None and write_faq:
+            section_index = results[-1].spec.index + 1
+            _save_section_artifacts(
+                save_prompt_dir,
+                SectionSpec(title="FAQ", index=section_index),
+                faq_prompt,
+                faq_body,
+            )
+
+    return article
 
 
 def _load_brief(path: Path) -> SeoBrief:
@@ -332,6 +357,60 @@ def _sanitize_section(body: str) -> str:
         cleaned_lines.append(stripped)
     cleaned = "\n".join(cleaned_lines).strip()
     return cleaned or "(no content generated)"
+
+
+def _build_faq_body(
+    context: WritingContext,
+    *,
+    model_name: str,
+    temperature: float,
+    reporter: Reporter,
+    language_detector: Callable[[str], str] | None,
+    write_faq: bool,
+    max_snippet_chars: int = 1800,
+) -> tuple[str, str]:
+    if not write_faq:
+        return _render_faq_verbatim(context.brief), ""
+
+    snippets = build_snippet_block(
+        context.note.body,
+        section_title="FAQ",
+        primary_keyword=context.brief.primary_keyword,
+        secondary_keywords=context.brief.secondary_keywords,
+        max_chars=max_snippet_chars,
+    )
+    prompt = build_faq_prompt(
+        project=context.project,
+        brief=context.brief,
+        note_snippets=snippets.text,
+        language=context.language,
+    )
+    _report(reporter, "Generating FAQ section")
+
+    try:
+        body = ensure_language_output(
+            prompt=prompt,
+            expected_language=context.language,
+            invoke=lambda prompt: _invoke_model(prompt, model_name=model_name, temperature=temperature),
+            extract_text=lambda text: text,
+            reporter=reporter,
+            language_detector=language_detector,
+        )
+    except LanguageMismatchError as exc:
+        raise WritingValidationError(str(exc)) from exc
+    except LanguageResolutionError as exc:
+        raise WritingValidationError(str(exc)) from exc
+    return _sanitize_section(str(body)), prompt
+
+
+def _render_faq_verbatim(brief: SeoBrief) -> str:
+    entries: list[str] = []
+    for item in brief.faq:
+        question = item.question.strip()
+        answer = item.answer.strip()
+        if question and answer:
+            entries.append(f"**{question}**\n{answer}")
+    return "\n\n".join(entries).strip() or "(no FAQ entries provided)"
 
 
 def _ensure_section_title_language(

@@ -77,6 +77,16 @@ def write_command(
         "--dry-run",
         help="Print the first section prompt and exit (no inference).",
     ),
+    include_faq: bool = typer.Option(  # noqa: B008
+        False,
+        "--include-faq",
+        help="Append a final FAQ section using the brief FAQ items verbatim.",
+    ),
+    write_faq: bool = typer.Option(  # noqa: B008
+        False,
+        "--write-faq",
+        help="Generate the FAQ section via the model using note snippets and the brief FAQ targets.",
+    ),
     save_prompt: Path | None = typer.Option(  # noqa: B008
         None,
         "--save-prompt",
@@ -165,6 +175,8 @@ def write_command(
             temperature=temperature,
             evidence_required=evidence_required,
             section_range=section_range,
+            include_faq=include_faq or write_faq,
+            write_faq=write_faq,
             reporter=reporter,
             save_prompt_dir=save_prompt_path,
         )

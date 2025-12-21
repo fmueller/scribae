@@ -210,3 +210,44 @@ def test_save_prompt_artifacts(recording_llm: RecordingLLM, note_path: Path, bri
     assert len(response_files) == 2
     assert "SYSTEM PROMPT" in prompt_files[0].read_text(encoding="utf-8")
     assert "body." in response_files[0].read_text(encoding="utf-8")
+
+
+def test_include_faq_appends_verbatim_section(recording_llm: RecordingLLM, note_path: Path, brief_path: Path) -> None:
+    result = runner.invoke(
+        app,
+        [
+            "write",
+            "--note",
+            str(note_path),
+            "--brief",
+            str(brief_path),
+            "--include-faq",
+        ],
+    )
+
+    assert result.exit_code == 0, result.stderr
+    body = result.stdout
+    assert "## FAQ" in body
+    assert "**How often should observability data be reviewed?**" in body
+    assert "Review telemetry daily during active incidents" in body
+    assert len(recording_llm.prompts) == 6
+
+
+def test_write_faq_generates_section(recording_llm: RecordingLLM, note_path: Path, brief_path: Path) -> None:
+    result = runner.invoke(
+        app,
+        [
+            "write",
+            "--note",
+            str(note_path),
+            "--brief",
+            str(brief_path),
+            "--write-faq",
+        ],
+    )
+
+    assert result.exit_code == 0, result.stderr
+    body = result.stdout
+    assert "## FAQ" in body
+    assert "FAQ body." in body
+    assert len(recording_llm.prompts) == 7
