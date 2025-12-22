@@ -171,4 +171,4 @@ def test_version_command_outputs_version() -> None:
     result = runner.invoke(app, ["version"])
 
     assert result.exit_code == 0
-    assert result.stdout == f"scribae {__version__}\n"
+    assert result.stdout == f"scribae v{__version__}\n"

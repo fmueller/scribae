@@ -7,4 +7,4 @@ from . import __version__
 
 def version_command() -> None:
     """Print the Scribae version."""
-    typer.echo(f"scribae {__version__}")
+    typer.echo(f"scribae v{__version__}")
