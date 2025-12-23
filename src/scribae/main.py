@@ -9,7 +9,12 @@ from .translate_cli import translate_command
 from .version_cli import version_command
 from .write_cli import write_command
 
-app = typer.Typer(help="Scribae CLI — generate writing briefs from local notes.")
+app = typer.Typer(
+    help=(
+        "Scribae — turn local Markdown notes into reproducible SEO briefs, drafts, metadata, and translations "
+        "using LLMs via OpenAI-compatible APIs."
+    )
+)
 
 __all__ = ["app", "main"]
 
@@ -18,12 +23,15 @@ __all__ = ["app", "main"]
 def app_callback() -> None:
     """Root Scribae CLI callback."""
 
-app.command("idea", help="Brainstorm content ideas from a Markdown note.")(idea_command)
-app.command("brief", help="Create a structured creative brief from a Markdown note.")(brief_command)
-app.command("write", help="Generate article body from a note + SeoBrief.")(write_command)
-app.command("meta", help="Generate final article metadata/frontmatter.")(meta_command)
-app.command("translate", help="Translate Markdown locally (MT + post-edit).")(translate_command)
-app.command("version", help="Print the installed Scribae version.")(version_command)
+app.command("idea", help="Brainstorm article ideas from a note with project-aware guidance.")(idea_command)
+app.command(
+    "brief",
+    help="Generate a validated SEO brief (keywords, outline, FAQ, metadata) from a note.",
+)(brief_command)
+app.command("write", help="Draft an article from a note + SeoBrief JSON.")(write_command)
+app.command("meta", help="Create publication metadata/frontmatter for a finished draft.")(meta_command)
+app.command("translate", help="Translate Markdown while preserving formatting (MT + post-edit).")(translate_command)
+app.command("version", help="Print the Scribae version.")(version_command)
 
 
 def main() -> None:
