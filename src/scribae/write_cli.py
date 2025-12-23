@@ -63,19 +63,19 @@ def write_command(
         8000,
         "--max-chars",
         min=1,
-        help="Maximum number of note-body characters to send to the model.",
+        help="Maximum number of note-body characters to send to the LLM request.",
     ),
     temperature: float = typer.Option(  # noqa: B008
         0.2,
         "--temperature",
         min=0.0,
         max=2.0,
-        help="Temperature passed to the underlying model.",
+        help="Temperature for the LLM request.",
     ),
     dry_run: bool = typer.Option(  # noqa: B008
         False,
         "--dry-run",
-        help="Print the first section prompt and exit (no inference).",
+        help="Print the first section prompt and exit (no LLM call).",
     ),
     include_faq: bool = typer.Option(  # noqa: B008
         False,
@@ -85,7 +85,7 @@ def write_command(
     write_faq: bool = typer.Option(  # noqa: B008
         False,
         "--write-faq",
-        help="Generate the FAQ section via the model using note snippets and the brief FAQ targets.",
+        help="Generate the FAQ section via the LLM using note snippets and the brief FAQ targets.",
     ),
     save_prompt: Path | None = typer.Option(  # noqa: B008
         None,

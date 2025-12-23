@@ -74,19 +74,19 @@ def meta_command(
         8000,
         "--max-chars",
         min=1,
-        help="Maximum number of body characters to send to the model.",
+        help="Maximum number of body characters to send to the LLM request.",
     ),
     temperature: float = typer.Option(  # noqa: B008
         0.2,
         "--temperature",
         min=0.0,
         max=2.0,
-        help="Temperature passed to the underlying model.",
+        help="Temperature for the LLM request.",
     ),
     dry_run: bool = typer.Option(  # noqa: B008
         False,
         "--dry-run",
-        help="Print the generated prompt and skip the model call.",
+        help="Print the generated prompt and skip the LLM call.",
     ),
     save_prompt: Path | None = typer.Option(  # noqa: B008
         None,
@@ -113,7 +113,7 @@ def meta_command(
         "--out",
         "-o",
         resolve_path=True,
-        help="Write output to this file.",
+        help="Write output to this file (required).",
     ),
 ) -> None:
     """CLI handler for `scribae meta`."""

@@ -72,25 +72,25 @@ def idea_command(
     json_output: bool = typer.Option(  # noqa: B008
         False,
         "--json",
-        help="Print JSON to stdout instead of writing to a file.",
+        help="Print JSON to stdout (no file output).",
     ),
     max_chars: int = typer.Option(  # noqa: B008
         4000,
         "--max-chars",
         min=1,
-        help="Maximum number of note-body characters to send to the model.",
+        help="Maximum number of note-body characters to send to the LLM request.",
     ),
     temperature: float = typer.Option(  # noqa: B008
         0.4,
         "--temperature",
         min=0.0,
         max=2.0,
-        help="Temperature passed to the underlying model.",
+        help="Temperature for the LLM request.",
     ),
     dry_run: bool = typer.Option(  # noqa: B008
         False,
         "--dry-run",
-        help="Print the generated prompt and skip the model call.",
+        help="Print the generated prompt and skip the LLM call.",
     ),
     save_prompt: Path | None = typer.Option(  # noqa: B008
         None,

@@ -114,7 +114,7 @@ def brief_command(
         None,
         "--out-dir",
         resolve_path=True,
-        help="Directory to write per-idea briefs when using --idea-all.",
+        help="Write per-idea briefs to this directory when using --idea-all.",
     ),
     out: Path | None = typer.Option(  # noqa: B008
         None,
@@ -126,25 +126,25 @@ def brief_command(
     json_output: bool = typer.Option(  # noqa: B008
         False,
         "--json",
-        help="Print JSON to stdout instead of writing to a file.",
+        help="Print JSON to stdout (no file output).",
     ),
     max_chars: int = typer.Option(  # noqa: B008
         6000,
         "--max-chars",
         min=1,
-        help="Maximum number of note-body characters to send to the model.",
+        help="Maximum number of note-body characters to send to the LLM request.",
     ),
     temperature: float = typer.Option(  # noqa: B008
         0.3,
         "--temperature",
         min=0.0,
         max=2.0,
-        help="Temperature passed to the underlying model.",
+        help="Temperature for the LLM request.",
     ),
     dry_run: bool = typer.Option(  # noqa: B008
         False,
         "--dry-run",
-        help="Print the generated prompt and skip the model call.",
+        help="Print the generated prompt and skip the LLM call.",
     ),
     save_prompt: Path | None = typer.Option(  # noqa: B008
         None,

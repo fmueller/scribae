@@ -54,13 +54,13 @@ def translate(
         exists=True,
         readable=True,
         dir_okay=False,
-        help="Input markdown.",
+        help="Input Markdown.",
     ),
     output_path: Path | None = typer.Option(  # noqa: B008
         None,
         "--out",
         dir_okay=False,
-        help="Output path (stdout if omitted).",
+        help="Write output to this file (stdout if omitted).",
     ),
     glossary: Path | None = typer.Option(  # noqa: B008
         None,
@@ -102,7 +102,7 @@ def translate(
     debug: bool = typer.Option(  # noqa: B008
         False,
         "--debug",
-        help="Write debug artifacts alongside output.",
+        help="Write a *.debug.json report alongside output.",
     ),
     protect: list[str] = typer.Option(  # noqa: B008
         [],
