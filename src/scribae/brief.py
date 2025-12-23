@@ -152,8 +152,7 @@ def prepare_context(
     max_chars: int,
     language: str | None = None,
     ideas_path: Path | None = None,
-    idea_id: str | None = None,
-    idea_index: int | None = None,
+    idea_selector: str | None = None,
     idea: Idea | None = None,
     language_detector: Callable[[str], str] | None = None,
     reporter: Reporter = None,
@@ -163,10 +162,10 @@ def prepare_context(
         raise BriefValidationError("--max-chars must be greater than zero.")
     if idea is not None and ideas_path is not None:
         raise BriefValidationError("Provide either a direct idea or an ideas file, not both.")
-    if idea is not None and (idea_id or idea_index):
+    if idea is not None and idea_selector:
         raise BriefValidationError("Idea selection options cannot be used when an idea is provided directly.")
-    if ideas_path is None and (idea_id or idea_index):
-        raise BriefValidationError("--idea-id/--idea-index requires --ideas.")
+    if ideas_path is None and idea_selector:
+        raise BriefValidationError("--idea requires --ideas.")
 
     try:
         note = load_note(note_path, max_chars=max_chars)
@@ -200,8 +199,7 @@ def prepare_context(
         ideas = load_ideas(ideas_path)
         selected_idea = _select_idea(
             ideas,
-            idea_id=idea_id,
-            idea_index=idea_index,
+            idea_selector=idea_selector,
             metadata=note.metadata,
         )
         _report(reporter, f"Selected idea '{selected_idea.title}' (id={selected_idea.id}).")
@@ -384,30 +382,26 @@ def _brief_language_text(brief: SeoBrief) -> str:
 def _select_idea(
     ideas: IdeaList,
     *,
-    idea_id: str | None,
-    idea_index: int | None,
+    idea_selector: str | None,
     metadata: dict[str, Any],
 ) -> Idea:
-    if idea_id and idea_index:
-        raise BriefValidationError("Choose either --idea-id or --idea-index, not both.")
-
-    resolved_id = idea_id or _metadata_idea_id(metadata)
+    resolved_id = idea_selector or _metadata_idea_id(metadata)
     if resolved_id:
         for idea in ideas.ideas:
             if idea.id == resolved_id:
                 return idea
+        if idea_selector and idea_selector.isdigit():
+            index = int(idea_selector)
+            if not (1 <= index <= len(ideas.ideas)):
+                raise BriefValidationError(f"--idea must be between 1 and {len(ideas.ideas)} when using an index.")
+            return ideas.ideas[index - 1]
         raise BriefValidationError(f"No idea found with id '{resolved_id}'.")
-
-    if idea_index is not None:
-        if not (1 <= idea_index <= len(ideas.ideas)):
-            raise BriefValidationError(f"--idea-index must be between 1 and {len(ideas.ideas)}.")
-        return ideas.ideas[idea_index - 1]
 
     if len(ideas.ideas) == 1:
         return ideas.ideas[0]
 
     raise BriefValidationError(
-        "Select an idea with --idea-id or --idea-index (or set idea_id in note frontmatter)."
+        "Select an idea with --idea (id or 1-based index), or set idea_id in note frontmatter."
     )
 
 
