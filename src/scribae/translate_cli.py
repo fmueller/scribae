@@ -92,7 +92,7 @@ def translate(
     postedit: bool = typer.Option(  # noqa: B008
         True,
         "--postedit/--no-postedit",
-        help="Enable post-edit LLM pass.",
+        help="Enable post-edit LLM pass via OpenAI-compatible API.",
     ),
     allow_pivot: bool = typer.Option(  # noqa: B008
         True,
@@ -112,7 +112,7 @@ def translate(
     postedit_model: str = typer.Option(  # noqa: B008
         DEFAULT_MODEL_NAME,
         "--postedit-model",
-        help="Model name for post-edit LLM pass.",
+        help="Model name for post-edit LLM pass via OpenAI-compatible API.",
     ),
     postedit_max_chars: int | None = typer.Option(  # noqa: B008
         4_000,

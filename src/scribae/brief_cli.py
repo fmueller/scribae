@@ -87,7 +87,7 @@ def brief_command(
         DEFAULT_MODEL_NAME,
         "--model",
         "-m",
-        help="OpenAI/Ollama model name to request.",
+        help="Model name to request via OpenAI-compatible API.",
     ),
     ideas: Path | None = typer.Option(  # noqa: B008
         None,

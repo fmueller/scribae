@@ -60,7 +60,7 @@ def idea_command(
         DEFAULT_MODEL_NAME,
         "--model",
         "-m",
-        help="OpenAI/Ollama model name to request.",
+        help="Model name to request via OpenAI-compatible API.",
     ),
     out: Path | None = typer.Option(  # noqa: B008
         None,
