@@ -1,9 +1,29 @@
 [project]
 name = "scribae"
 version = "0.1.0"
-description = "Add your description here"
+description = "CLI that turns local Markdown notes into structured SEO content packages."
 readme = "README.md"
 requires-python = ">=3.13"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+authors = [{ name = "Felix Müller" }]
+keywords = [
+    "cli",
+    "content",
+    "llm",
+    "markdown",
+    "nlp",
+    "seo",
+    "translation",
+    "writing",
+]
+classifiers = [
+    "Environment :: Console",
+    "Topic :: Text Processing",
+    "Topic :: Text Processing :: Linguistic",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.13",
+]
 dependencies = [
     "pydantic>=2.12.4",
     "pydantic-ai>=1.12.0",
@@ -21,16 +41,23 @@ dependencies = [
 [project.scripts]
 scribae = "scribae.main:app"
 
+[project.urls]
+Homepage = "https://github.com/fmueller/scribae"
+Repository = "https://github.com/fmueller/scribae"
+Issues = "https://github.com/fmueller/scribae/issues"
+
 [tool.uv]
 package = true
 
 [dependency-groups]
 dev = [
+    "build>=1.2.2.post1",
     "faker>=37.12.0",
     "mypy>=1.18.2",
     "pre-commit>=4.3.0",
     "pytest>=8.4.2",
     "ruff>=0.14.4",
+    "twine>=6.2.0",
 ]
 
 [tool.ruff]
@@ -67,3 +94,7 @@ ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]
+
+[build-system]
+requires = ["setuptools>=61", "wheel"]
+build-backend = "setuptools.build_meta"
