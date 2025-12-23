@@ -226,4 +226,29 @@ def test_prepare_context_requires_idea_selection_when_multiple(tmp_path: Path, f
             ideas_path=ideas_path,
         )
 
-    assert "--idea-id" in str(excinfo.value) or "idea_id" in str(excinfo.value)
+    assert "--idea" in str(excinfo.value) or "idea_id" in str(excinfo.value)
+
+
+def test_prepare_context_selects_idea_by_index_string(tmp_path: Path, fake: Faker) -> None:
+    note = tmp_path / "note.md"
+    note.write_text(fake.paragraph(), encoding="utf-8")
+
+    ideas = IdeaList(
+        ideas=[
+            Idea(id=fake.slug(), title=fake.sentence(nb_words=6), description=fake.paragraph(), why=fake.sentence()),
+            Idea(id=fake.slug(), title=fake.sentence(nb_words=6), description=fake.paragraph(), why=fake.sentence()),
+        ]
+    )
+    ideas_path = tmp_path / "ideas.json"
+    ideas_path.write_text(json.dumps(ideas.model_dump()), encoding="utf-8")
+
+    context = prepare_context(
+        note_path=note,
+        project=default_project(),
+        max_chars=1000,
+        ideas_path=ideas_path,
+        idea_selector="2",
+    )
+
+    assert context.idea is not None
+    assert context.idea.id == ideas.ideas[1].id

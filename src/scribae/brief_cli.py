@@ -94,16 +94,10 @@ def brief_command(
         "--ideas",
         help="Path to the JSON output from `scribae idea`.",
     ),
-    idea_id: str | None = typer.Option(  # noqa: B008
+    idea: str | None = typer.Option(  # noqa: B008
         None,
-        "--idea-id",
-        help="Idea id to anchor the brief.",
-    ),
-    idea_index: int | None = typer.Option(  # noqa: B008
-        None,
-        "--idea-index",
-        min=1,
-        help="1-based index into the ideas list.",
+        "--idea",
+        help="Idea id or 1-based index to anchor the brief.",
     ),
     idea_all: bool = typer.Option(  # noqa: B008
         False,
@@ -164,12 +158,10 @@ def brief_command(
 ) -> None:
     """CLI handler for `scribae brief`."""
     _validate_output_options(out, json_output, dry_run=dry_run, idea_all=idea_all, out_dir=out_dir)
-    if (idea_id or idea_index or idea_all) and ideas is None:
+    if (idea or idea_all) and ideas is None:
         raise typer.BadParameter("--ideas is required when selecting ideas.", param_hint="--ideas")
-    if idea_id and idea_index:
-        raise typer.BadParameter("--idea-id and --idea-index are mutually exclusive.", param_hint="--idea-id")
-    if idea_all and (idea_id or idea_index):
-        raise typer.BadParameter("--idea-all cannot be combined with --idea-id/--idea-index.", param_hint="--idea-all")
+    if idea_all and idea:
+        raise typer.BadParameter("--idea-all cannot be combined with --idea.", param_hint="--idea-all")
 
     if idea_all and save_prompt is not None:
         raise typer.BadParameter("--idea-all cannot be combined with --save-prompt.", param_hint="--idea-all")
@@ -247,8 +239,7 @@ def brief_command(
             max_chars=max_chars,
             language=language,
             ideas_path=ideas_path,
-            idea_id=idea_id,
-            idea_index=idea_index,
+            idea_selector=idea,
             reporter=reporter,
         )
     except BriefingError as exc:
