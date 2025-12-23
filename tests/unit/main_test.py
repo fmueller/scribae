@@ -172,3 +172,10 @@ def test_version_command_outputs_version() -> None:
 
     assert result.exit_code == 0
     assert result.stdout == f"scribae v{__version__}\n"
+
+
+def test_help_flag_alias_outputs_help() -> None:
+    result = runner.invoke(app, ["-h"])
+
+    assert result.exit_code == 0
+    assert "Scribae — turn local Markdown notes into reproducible SEO briefs" in result.stdout

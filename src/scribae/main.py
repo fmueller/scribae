@@ -13,7 +13,8 @@ app = typer.Typer(
     help=(
         "Scribae — turn local Markdown notes into reproducible SEO briefs, drafts, metadata, and translations "
         "using LLMs via OpenAI-compatible APIs."
-    )
+    ),
+    context_settings={"help_option_names": ["-h", "--help"]},
 )
 
 __all__ = ["app", "main"]
