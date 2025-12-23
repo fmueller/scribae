@@ -18,11 +18,11 @@ __all__ = ["app", "main"]
 def app_callback() -> None:
     """Root Scribae CLI callback."""
 
+app.command("idea", help="Brainstorm content ideas from a Markdown note.")(idea_command)
 app.command("brief", help="Create a structured creative brief from a Markdown note.")(brief_command)
 app.command("write", help="Generate article body from a note + SeoBrief.")(write_command)
 app.command("meta", help="Generate final article metadata/frontmatter.")(meta_command)
 app.command("translate", help="Translate Markdown locally (MT + post-edit).")(translate_command)
-app.command("idea", help="Brainstorm content ideas from a Markdown note.")(idea_command)
 app.command("version", help="Print the installed Scribae version.")(version_command)
 
 

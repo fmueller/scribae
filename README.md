@@ -2,39 +2,64 @@
 
 # Scribae
 
-Scribae is a Typer-powered CLI that turns local Markdown notes into structured SEO content packages. It keeps the research-to-publication flow reproducible by combining deterministic prompts, typed outputs, and OpenAI-compatible models (local or remote) so you can brief, draft, and finalize articles without pasting notes into ad-hoc chat sessions.
+Scribae is a CLI that turns local Markdown notes into structured SEO content packages. It keeps the
+research-to-publication flow reproducible by combining deterministic prompts, typed outputs, and
+OpenAI-compatible models (local or remote). The goal is to brief, draft, and finalize articles
+without pasting notes into ad-hoc chat sessions.
 
 ## Why Scribae?
 - **Keep source material local.** Point the CLI at a Markdown note and run everything against an OpenAI-compatible endpoint you control (defaults target a local Ollama-style server).
 - **Repeatable prompts.** Each command builds structured prompts and validates model responses to catch schema drift early.
 - **End-to-end workflow.** Move from ideation to translation within one tool instead of juggling separate scripts.
 
+## Core workflow
+1. Generate ideas from a note.
+2. Turn a selected idea into an SEO brief.
+3. Draft the article from the brief.
+4. Add metadata/frontmatter.
+5. Translate or post-edit the final draft.
+
 ## Feature overview
+- `scribae idea`: Brainstorm article ideas from a note with project-aware guidance.
 - `scribae brief`: Generate a validated SEO brief (keywords, outline, FAQ, metadata) from a note and optional project config.
 - `scribae write`: Produce an article draft using your note, project context, snippets, and a saved `SeoBrief`.
 - `scribae meta`: Create publication metadata/frontmatter for a finished draft.
 - `scribae translate`: Translate Markdown using MT + post-edit cues while preserving formatting.
-- `scribae idea`: Brainstorm article ideas from a note with project-aware guidance.
 
-## Developer setup
-1. Install [uv](https://github.com/astral-sh/uv).
-2. Sync dependencies (Python 3.13 is managed via uv):
+## Quick start
+1. Install [uv](https://github.com/astral-sh/uv) and sync dependencies (Python 3.13 is managed by uv):
    ```bash
    uv sync --locked --all-extras --dev
    ```
-3. (Optional) Point to your model endpoint:
+2. (Optional) Point Scribae at your model endpoint:
    ```bash
    export OPENAI_BASE_URL="http://localhost:11434/v1"
    export OPENAI_API_KEY="no-key"
    # or use OPENAI_API_BASE if you prefer
    ```
+3. Run the CLI:
+   ```bash
+   uv run scribae --help
+   ```
+
+## Testing
+Run the same checks as CI:
+```bash
+uv run ruff check
+uv run mypy
+uv run pytest
+```
 
 ## Usage
 - Inspect the CLI:
   ```bash
-  uv run python -m scribae.main --help
+  uv run scribae --help
   ```
-- Generate a brief from a note:
+- Generate ideas from a note:
+  ```bash
+  uv run scribae idea --note path/to/note.md --json
+  ```
+- Generate a brief from a note or idea:
   ```bash
   uv run scribae brief --note path/to/note.md --json
   ```
@@ -42,7 +67,8 @@ Scribae is a Typer-powered CLI that turns local Markdown notes into structured S
   ```bash
   uv run scribae write --note path/to/note.md --brief path/to/brief.json --out draft.md
   ```
-- Other commands follow the same pattern (`scribae meta`, `scribae translate`, `scribae idea`). Add `--verbose` to stream progress and `--save-prompt` on `brief` to persist prompt snapshots.
+- Other commands follow the same pattern (`scribae meta`, `scribae translate`). Add
+  `--verbose` to stream progress and `--save-prompt` on `brief` to persist prompt snapshots.
 
 ## Use cases
 - **Idea discovery.** Start with a note and generate a structured list of candidate articles. Use `--project` to pull defaults, `--language` or `--model` to override them, and `--json`/`--out` to choose stdout vs file output. `--dry-run` prints the prompt without calling a model.
@@ -65,14 +91,6 @@ Scribae is a Typer-powered CLI that turns local Markdown notes into structured S
   ```bash
   uv run scribae translate --src en --tgt de --in draft.md --out draft.de.md --debug
   ```
-
-## Testing
-Run the same checks as CI:
-```bash
-uv run ruff check
-uv run mypy
-uv run pytest
-```
 
 ## License
 This project is licensed under the Apache License 2.0. See [LICENSE](LICENSE) for details.
