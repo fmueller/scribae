@@ -32,6 +32,9 @@ def stub_translation_components(monkeypatch: pytest.MonkeyPatch) -> dict[str, An
             self.args = args
             self.kwargs = kwargs
 
+        def route(self, *args: object, **kwargs: object) -> list[object]:
+            return []
+
     class DummyTranslator:
         def __init__(self, registry: DummyRegistry, device: str | None = None) -> None:
             self.registry = registry

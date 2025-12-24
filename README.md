@@ -26,6 +26,15 @@ without pasting notes into ad-hoc chat sessions.
 - `scribae meta`: Create publication metadata/frontmatter for a finished draft.
 - `scribae translate`: Translate Markdown using MT + post-edit cues while preserving formatting.
 
+## Translation behavior
+`scribae translate` runs offline MT first, then optionally applies an LLM post-edit pass to improve fluency while
+keeping placeholders, links, and numbers intact.
+- **Direct MarianMT pairs.** Built-in models cover `en`↔`de/es/fr/it/pt` plus `de`→`es/fr/it/pt` and
+  `es`→`de/fr/it/pt`.
+- **Pivoting via English.** If no direct pair exists and `--allow-pivot` is enabled, Scribae will try `src → en → tgt`.
+- **NLLB fallback.** When pivoting fails, the pipeline falls back to NLLB. ISO codes like `en`/`de`/`es` are mapped to
+  NLLB codes (e.g., `eng_Latn`, `deu_Latn`, `spa_Latn`). You can also pass NLLB codes directly via `--src`/`--tgt`.
+
 ## Quick start
 1. Install [uv](https://github.com/astral-sh/uv) and sync dependencies (Python 3.13 is managed by uv):
    ```bash

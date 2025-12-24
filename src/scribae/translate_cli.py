@@ -41,12 +41,15 @@ def translate(
     src: str | None = typer.Option(  # noqa: B008
         None,
         "--src",
-        help="Source language code, e.g. en. Required unless provided via --project.",
+        help=(
+            "Source language code, e.g. en or eng_Latn (NLLB). "
+            "Required unless provided via --project."
+        ),
     ),
     tgt: str = typer.Option(  # noqa: B008
         ...,
         "--tgt",
-        help="Target language code, e.g. de.",
+        help="Target language code, e.g. de or deu_Latn (NLLB).",
     ),
     input_path: Path = typer.Option(  # noqa: B008
         ...,
@@ -97,7 +100,7 @@ def translate(
     allow_pivot: bool = typer.Option(  # noqa: B008
         True,
         "--allow-pivot/--no-allow-pivot",
-        help="Allow pivot via English.",
+        help="Allow pivot via English before falling back to NLLB.",
     ),
     debug: bool = typer.Option(  # noqa: B008
         False,
@@ -168,6 +171,10 @@ def translate(
     )
 
     registry = ModelRegistry()
+    try:
+        registry.route(resolved_src, tgt, allow_pivot=allow_pivot, backend=cfg.mt_backend)
+    except ValueError as exc:
+        raise typer.BadParameter(str(exc)) from exc
     mt = MTTranslator(registry, device=device)
     posteditor = LLMPostEditor(
         model_name=postedit_model,

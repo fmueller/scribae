@@ -77,6 +77,27 @@ def test_routing_direct_pivot_and_fallback() -> None:
     assert fallback_route[0].model.backend == "nllb"
 
 
+def test_nllb_fallback_maps_iso_codes() -> None:
+    registry = ModelRegistry(specs=[ModelSpec(model_id="mt-xx-yy", src_lang="xx", tgt_lang="yy", backend="marian")])
+
+    route = registry.route("es-ES", "pt-BR", allow_pivot=False)
+
+    assert route[0].model.backend == "nllb"
+    assert route[0].src_lang == "spa_Latn"
+    assert route[0].tgt_lang == "por_Latn"
+
+
+def test_nllb_fallback_rejects_unknown_language() -> None:
+    registry = ModelRegistry(specs=[ModelSpec(model_id="mt-xx-yy", src_lang="xx", tgt_lang="yy", backend="marian")])
+
+    try:
+        registry.route("xx", "de", allow_pivot=False)
+    except ValueError as exc:
+        assert "Unsupported language code" in str(exc)
+    else:
+        raise AssertionError("Expected ValueError for unknown language code")
+
+
 def test_postedit_enforces_glossary_keep_and_target() -> None:
     posteditor = LLMPostEditor(create_agent=False)
     segmenter = MarkdownSegmenter()

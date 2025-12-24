@@ -63,20 +63,30 @@ class MTTranslator:
 
     def _run_step(self, step: RouteStep, text: str) -> str:
         translator = self._pipeline_for(step.model.model_id)
-        result: list[dict[str, Any]] | str = translator(
-            text,
-            src_lang=step.src_lang if step.model.backend == "nllb" else None,
-            tgt_lang=step.tgt_lang if step.model.backend == "nllb" else None,
-        )
+        try:
+            result: list[dict[str, Any]] | str = translator(
+                text,
+                src_lang=step.src_lang if step.model.backend == "nllb" else None,
+                tgt_lang=step.tgt_lang if step.model.backend == "nllb" else None,
+            )
+        except Exception as exc:  # pragma: no cover - depends on transformer runtime failures
+            raise RuntimeError(
+                f"Translation failed for {step.src_lang}->{step.tgt_lang} using {step.model.model_id}"
+            ) from exc
         return self._extract_translation(result)[0]
 
     def _run_step_batch(self, step: RouteStep, texts: list[str]) -> list[str]:
         translator = self._pipeline_for(step.model.model_id)
-        result: list[dict[str, Any]] = translator(
-            texts,
-            src_lang=step.src_lang if step.model.backend == "nllb" else None,
-            tgt_lang=step.tgt_lang if step.model.backend == "nllb" else None,
-        )
+        try:
+            result: list[dict[str, Any]] = translator(
+                texts,
+                src_lang=step.src_lang if step.model.backend == "nllb" else None,
+                tgt_lang=step.tgt_lang if step.model.backend == "nllb" else None,
+            )
+        except Exception as exc:  # pragma: no cover - depends on transformer runtime failures
+            raise RuntimeError(
+                f"Translation failed for {step.src_lang}->{step.tgt_lang} using {step.model.model_id}"
+            ) from exc
         return self._extract_translation(result)
 
     def _extract_translation(self, result: list[dict[str, Any]] | str) -> list[str]:

@@ -4,6 +4,21 @@ from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from typing import Literal
 
+NLLB_LANGUAGE_MAP = {
+    "de": "deu_Latn",
+    "en": "eng_Latn",
+    "es": "spa_Latn",
+    "fr": "fra_Latn",
+    "it": "ita_Latn",
+    "pt": "por_Latn",
+}
+
+_NLLB_CODE_ALIASES = {
+    value.lower(): value for value in NLLB_LANGUAGE_MAP.values()
+} | {
+    value.lower().replace("_", "-"): value for value in NLLB_LANGUAGE_MAP.values()
+}
+
 Backend = Literal["marian", "nllb"]
 
 
@@ -40,7 +55,13 @@ class ModelRegistry:
         self._nllb_model_id = nllb_model_id or "facebook/nllb-200-distilled-600M"
 
     def normalize_lang(self, lang: str) -> str:
-        return lang.lower()
+        cleaned = lang.strip()
+        if not cleaned:
+            return cleaned
+        canonical_nllb = _canonicalize_nllb_code(cleaned)
+        if canonical_nllb:
+            return canonical_nllb
+        return cleaned.lower().replace("_", "-").split("-")[0]
 
     def find_direct(self, src_lang: str, tgt_lang: str) -> ModelSpec | None:
         src = self.normalize_lang(src_lang)
@@ -51,6 +72,22 @@ class ModelRegistry:
             if self.normalize_lang(spec.src_lang) == src and self.normalize_lang(spec.tgt_lang) == tgt:
                 return spec
         return None
+
+    def nllb_lang_code(self, lang: str) -> str:
+        cleaned = lang.strip()
+        if not cleaned:
+            raise ValueError("Language code is required for NLLB fallback")
+        canonical_nllb = _canonicalize_nllb_code(cleaned)
+        if canonical_nllb:
+            return canonical_nllb
+        normalized = self.normalize_lang(cleaned)
+        mapped = NLLB_LANGUAGE_MAP.get(normalized)
+        if mapped:
+            return mapped
+        supported = ", ".join(sorted(NLLB_LANGUAGE_MAP))
+        raise ValueError(
+            f"Unsupported language code '{lang}' for NLLB fallback. Supported ISO codes: {supported}."
+        )
 
     def nllb_spec(self) -> ModelSpec:
         return ModelSpec(
@@ -85,7 +122,9 @@ class ModelRegistry:
 
         if "nllb" in backend:
             nllb = self.nllb_spec()
-            return [RouteStep(src_lang=src, tgt_lang=tgt, model=nllb)]
+            mapped_src = self.nllb_lang_code(src_lang)
+            mapped_tgt = self.nllb_lang_code(tgt_lang)
+            return [RouteStep(src_lang=mapped_src, tgt_lang=mapped_tgt, model=nllb)]
 
         raise ValueError(f"No route found for {src}->{tgt}")
 
@@ -111,6 +150,10 @@ def _default_specs() -> list[ModelSpec]:
         ("de", "en", "Helsinki-NLP/opus-mt-de-en"),
         ("en", "es", "Helsinki-NLP/opus-mt-en-es"),
         ("es", "en", "Helsinki-NLP/opus-mt-es-en"),
+        ("es", "de", "Helsinki-NLP/opus-mt-es-de"),
+        ("es", "fr", "Helsinki-NLP/opus-mt-es-fr"),
+        ("es", "it", "Helsinki-NLP/opus-mt-es-it"),
+        ("es", "pt", "Helsinki-NLP/opus-mt-es-pt"),
         ("en", "fr", "Helsinki-NLP/opus-mt-en-fr"),
         ("fr", "en", "Helsinki-NLP/opus-mt-fr-en"),
         ("en", "it", "Helsinki-NLP/opus-mt-en-it"),
@@ -123,6 +166,17 @@ def _default_specs() -> list[ModelSpec]:
         ("de", "pt", "Helsinki-NLP/opus-mt-de-pt"),
     )
     return [ModelSpec(model_id=model_id, src_lang=src, tgt_lang=tgt, backend="marian") for src, tgt, model_id in pairs]
+
+
+def _canonicalize_nllb_code(value: str) -> str | None:
+    cleaned = value.strip().replace("-", "_")
+    parts = cleaned.split("_")
+    if len(parts) != 2:
+        return _NLLB_CODE_ALIASES.get(cleaned.lower())
+    lang, script = parts
+    if len(lang) != 3 or len(script) != 4 or not lang.isalpha() or not script.isalpha():
+        return _NLLB_CODE_ALIASES.get(cleaned.lower())
+    return f"{lang.lower()}_{script.title()}"
 
 
 __all__ = ["ModelRegistry", "ModelSpec", "RouteStep"]
