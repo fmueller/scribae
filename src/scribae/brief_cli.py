@@ -197,14 +197,14 @@ def brief_command(
             raise typer.Exit(exc.exit_code) from exc
 
         out_dir_path.mkdir(parents=True, exist_ok=True)
-        for idx, idea in enumerate(idea_list.ideas, start=1):
+        for idx, idea_item in enumerate(idea_list.ideas, start=1):
             try:
                 context = brief.prepare_context(
                     note_path=note,
                     project=project_config,
                     max_chars=max_chars,
                     language=language,
-                    idea=idea,
+                    idea=idea_item,
                     reporter=reporter,
                 )
             except BriefingError as exc:
@@ -226,7 +226,7 @@ def brief_command(
                 raise typer.Exit(exc.exit_code) from exc
 
             json_payload = brief.render_json(result)
-            slug = _safe_slug(idea.id)
+            slug = _safe_slug(idea_item.id)
             output_path = out_dir_path / f"{idx:02d}-{slug}.json"
             output_path.write_text(json_payload + "\n", encoding="utf-8")
             typer.echo(f"Wrote brief to {output_path}")
