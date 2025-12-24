@@ -179,3 +179,10 @@ def test_help_flag_alias_outputs_help() -> None:
 
     assert result.exit_code == 0
     assert "Scribae — turn local Markdown notes into reproducible SEO briefs" in result.stdout
+
+
+def test_help_flag_outputs_help() -> None:
+    result = runner.invoke(app, ["--help"])
+
+    assert result.exit_code == 0
+    assert "Scribae — turn local Markdown notes into reproducible SEO briefs" in result.stdout
