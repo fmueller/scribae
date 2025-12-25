@@ -112,6 +112,12 @@ class ModelRegistry:
         src = self.normalize_lang(src_lang)
         tgt = self.normalize_lang(tgt_lang)
 
+        if backend == "nllb_only":
+            nllb = self.nllb_spec()
+            mapped_src = self.nllb_lang_code(src_lang)
+            mapped_tgt = self.nllb_lang_code(tgt_lang)
+            return [RouteStep(src_lang=mapped_src, tgt_lang=mapped_tgt, model=nllb)]
+
         direct = self.find_direct(src, tgt)
         if direct:
             return [RouteStep(src_lang=src, tgt_lang=tgt, model=direct)]

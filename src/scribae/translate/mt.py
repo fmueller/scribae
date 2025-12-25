@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Iterable
 from typing import TYPE_CHECKING, Any
 
 from .model_registry import ModelRegistry, RouteStep
@@ -60,6 +61,17 @@ class MTTranslator:
                     "translation", model=model_id, device=self.device
                 )
         return self._pipelines[model_id]
+
+    def prefetch(self, steps: Iterable[RouteStep]) -> None:
+        """Warm translation pipelines for the provided route steps."""
+        for step in steps:
+            try:
+                self._pipeline_for(step.model.model_id)
+            except Exception as exc:  # pragma: no cover - depends on HF runtime errors
+                raise RuntimeError(
+                    f"Failed to prefetch translation model '{step.model.model_id}'. "
+                    "Check that the model exists and that your Hugging Face credentials are set."
+                ) from exc
 
     def _run_step(self, step: RouteStep, text: str) -> str:
         translator = self._pipeline_for(step.model.model_id)

@@ -33,17 +33,23 @@ def stub_translation_components(monkeypatch: pytest.MonkeyPatch) -> dict[str, An
             self.kwargs = kwargs
 
         def route(self, *args: object, **kwargs: object) -> list[object]:
-            return []
+            return ["step"]
 
     class DummyTranslator:
         def __init__(self, registry: DummyRegistry, device: str | None = None) -> None:
             self.registry = registry
             self.device = device
 
+        def prefetch(self, steps: list[object]) -> None:
+            calls["mt_prefetch"] = list(steps)
+
     class DummyPostEditor:
         def __init__(self, *args: object, **kwargs: object) -> None:
             self.args = args
             self.kwargs = kwargs
+
+        def prefetch_language_model(self) -> None:
+            calls["postedit_prefetch"] = True
 
     class DummySegmenter:
         def __init__(self, protected_patterns: list[str] | None = None) -> None:
@@ -240,3 +246,163 @@ def test_translate_debug_writes_report_for_stdout_path(
     assert result.exit_code == 0
     debug_path = input_markdown.with_suffix(input_markdown.suffix + ".debug.json")
     assert debug_path.exists()
+
+
+def test_translate_prefetch_only_skips_translation(
+    stub_translation_components: dict[str, Any],
+    input_markdown: Path,
+) -> None:
+    result = runner.invoke(
+        app,
+        [
+            "translate",
+            "--src",
+            "en",
+            "--tgt",
+            "de",
+            "--in",
+            str(input_markdown),
+            "--prefetch-only",
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert "translated:" not in result.stdout
+    assert "Prefetch complete for en->de." not in result.stdout
+    assert "mt_prefetch" in stub_translation_components
+    assert "postedit_prefetch" in stub_translation_components
+    assert "text" not in stub_translation_components
+
+
+def test_translate_prefetch_only_allows_missing_input(
+    stub_translation_components: dict[str, Any],
+) -> None:
+    result = runner.invoke(
+        app,
+        [
+            "translate",
+            "--src",
+            "en",
+            "--tgt",
+            "de",
+            "--prefetch-only",
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert "Prefetch complete for en->de." not in result.stdout
+    assert "mt_prefetch" in stub_translation_components
+    assert "postedit_prefetch" in stub_translation_components
+    assert "text" not in stub_translation_components
+
+
+def test_translate_prefetch_only_verbose_outputs_status(
+    stub_translation_components: dict[str, Any],
+) -> None:
+    result = runner.invoke(
+        app,
+        [
+            "translate",
+            "--src",
+            "en",
+            "--tgt",
+            "de",
+            "--prefetch-only",
+            "--verbose",
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert "Prefetch complete for en->de." in result.stdout
+    assert "Language detection model prefetched." in result.stdout
+
+
+def test_translate_requires_input_without_prefetch_only(
+    stub_translation_components: dict[str, Any],
+) -> None:
+    result = runner.invoke(
+        app,
+        [
+            "translate",
+            "--src",
+            "en",
+            "--tgt",
+            "de",
+        ],
+    )
+
+    assert result.exit_code != 0
+    ansi_stripped = re.sub(r"\x1b\[[0-9;]*m", "", result.stderr)
+    assert "--in is required unless --prefetch-only" in ansi_stripped
+
+
+def test_translate_prefetch_runs_before_translation(
+    stub_translation_components: dict[str, Any],
+    input_markdown: Path,
+) -> None:
+    result = runner.invoke(
+        app,
+        [
+            "translate",
+            "--src",
+            "en",
+            "--tgt",
+            "de",
+            "--in",
+            str(input_markdown),
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert "mt_prefetch" in stub_translation_components
+    assert "postedit_prefetch" in stub_translation_components
+    assert "translated:en->de" in result.stdout
+
+
+def test_translate_prefetch_skips_postedit_when_disabled(
+    stub_translation_components: dict[str, Any],
+    input_markdown: Path,
+) -> None:
+    result = runner.invoke(
+        app,
+        [
+            "translate",
+            "--src",
+            "en",
+            "--tgt",
+            "de",
+            "--in",
+            str(input_markdown),
+            "--no-postedit",
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert "mt_prefetch" in stub_translation_components
+    assert "postedit_prefetch" not in stub_translation_components
+
+
+def test_translate_prefetch_reports_errors(
+    monkeypatch: pytest.MonkeyPatch,
+    stub_translation_components: dict[str, Any],
+) -> None:
+    def _raise(self: object, steps: list[object]) -> None:
+        raise RuntimeError("prefetch failed")
+
+    monkeypatch.setattr("scribae.translate_cli.MTTranslator.prefetch", _raise)
+
+    result = runner.invoke(
+        app,
+        [
+            "translate",
+            "--src",
+            "en",
+            "--tgt",
+            "de",
+            "--prefetch-only",
+        ],
+    )
+
+    assert result.exit_code != 0
+    ansi_stripped = re.sub(r"\x1b\[[0-9;]*m", "", result.stderr)
+    assert "prefetch failed" in ansi_stripped

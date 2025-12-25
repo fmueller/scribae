@@ -51,8 +51,8 @@ def translate(
         "--tgt",
         help="Target language code, e.g. de or deu_Latn (NLLB).",
     ),
-    input_path: Path = typer.Option(  # noqa: B008
-        ...,
+    input_path: Path | None = typer.Option(  # noqa: B008
+        None,
         "--in",
         exists=True,
         readable=True,
@@ -96,6 +96,11 @@ def translate(
         True,
         "--postedit/--no-postedit",
         help="Enable post-edit LLM pass via OpenAI-compatible API.",
+    ),
+    prefetch_only: bool = typer.Option(  # noqa: B008
+        False,
+        "--prefetch-only",
+        help="Only prefetch translation models and exit.",
     ),
     allow_pivot: bool = typer.Option(  # noqa: B008
         True,
@@ -156,7 +161,9 @@ def translate(
     resolved_tone = tone or (project_cfg["tone"] if project_cfg else "neutral")
     resolved_audience = audience or (project_cfg["audience"] if project_cfg else "educated general")
 
-    text = input_path.read_text(encoding="utf-8")
+    if input_path is None and not prefetch_only:
+        raise typer.BadParameter("--in is required unless --prefetch-only")
+
     glossary_map = _load_glossary(glossary)
     tone_profile = ToneProfile(register=resolved_tone, audience=resolved_audience)
 
@@ -172,7 +179,7 @@ def translate(
 
     registry = ModelRegistry()
     try:
-        registry.route(resolved_src, tgt, allow_pivot=allow_pivot, backend=cfg.mt_backend)
+        steps = registry.route(resolved_src, tgt, allow_pivot=allow_pivot, backend=cfg.mt_backend)
     except ValueError as exc:
         raise typer.BadParameter(str(exc)) from exc
     mt = MTTranslator(registry, device=device)
@@ -182,6 +189,37 @@ def translate(
         create_agent=postedit,
         max_chars=postedit_max_chars,
     )
+
+    try:
+        mt.prefetch(steps)
+        if postedit:
+            posteditor.prefetch_language_model()
+    except Exception as exc:
+        if not prefetch_only and "nllb" in cfg.mt_backend:
+            typer.secho(
+                "Primary MT model prefetch failed; falling back to NLLB.",
+                err=True,
+                fg=typer.colors.YELLOW,
+            )
+            cfg.mt_backend = "nllb_only"
+            steps = registry.route(resolved_src, tgt, allow_pivot=False, backend=cfg.mt_backend)
+            try:
+                mt.prefetch(steps)
+            except Exception as fallback_exc:
+                typer.secho(str(fallback_exc), err=True, fg=typer.colors.RED)
+                raise typer.Exit(4) from fallback_exc
+        else:
+            typer.secho(str(exc), err=True, fg=typer.colors.RED)
+            raise typer.Exit(4) from exc
+    if prefetch_only:
+        if verbose:
+            typer.echo(f"Prefetch complete for {resolved_src}->{tgt}.")
+            if postedit:
+                typer.echo("Language detection model prefetched.")
+        return
+
+    assert input_path is not None
+    text = input_path.read_text(encoding="utf-8")
     debug_records: list[dict[str, Any]] = []
     segmenter = MarkdownSegmenter(protected_patterns=protect)
     pipeline = TranslationPipeline(

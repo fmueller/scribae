@@ -94,6 +94,12 @@ class LLMPostEditor:
         self._validate_output(enforced, protected.placeholders.keys(), cfg.glossary)
         return enforced
 
+    def prefetch_language_model(self) -> None:
+        """Warm the language detection model used for post-edit validation."""
+        if self.agent is None:
+            return
+        self._detect_language("Hello world")
+
     def _invoke(self, prompt: str, placeholders: Iterable[str], mt_draft: str, *, expected_lang: str) -> str:
         agent = self.agent
         if agent is None:
