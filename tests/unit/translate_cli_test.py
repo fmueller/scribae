@@ -358,6 +358,8 @@ def test_translate_prefetch_runs_before_translation(
     assert "mt_prefetch" in stub_translation_components
     assert "postedit_prefetch" in stub_translation_components
     assert "translated:en->de" in result.stdout
+    cfg = cast(TranslationConfig, stub_translation_components["cfg"])
+    assert cfg.tone.audience == "general readers"
 
 
 def test_translate_prefetch_skips_postedit_when_disabled(
