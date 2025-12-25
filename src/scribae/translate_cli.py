@@ -128,6 +128,7 @@ def translate(
     postedit: bool = typer.Option(  # noqa: B008
         True,
         "--postedit/--no-postedit",
+        "--pe/--no-pe",
         help="Enable post-edit LLM pass via OpenAI-compatible API.",
     ),
     prefetch_only: bool = typer.Option(  # noqa: B008
@@ -153,16 +154,19 @@ def translate(
     postedit_model: str = typer.Option(  # noqa: B008
         DEFAULT_MODEL_NAME,
         "--postedit-model",
+        "--pe-model",
         help="Model name for post-edit LLM pass via OpenAI-compatible API.",
     ),
     postedit_max_chars: int | None = typer.Option(  # noqa: B008
         4_000,
         "--postedit-max-chars",
+        "--pe-max-chars",
         help="Maximum characters allowed in post-edit prompt (None disables limit).",
     ),
     postedit_temperature: float = typer.Option(  # noqa: B008
         0.2,
         "--postedit-temperature",
+        "--pe-temp",
         help="Temperature for post-edit LLM pass.",
     ),
     device: str = typer.Option(  # noqa: B008
