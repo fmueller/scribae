@@ -13,7 +13,7 @@ import yaml
 
 from scribae.language import LanguageResolutionError, detect_language, normalize_language
 from scribae.llm import DEFAULT_MODEL_NAME
-from scribae.project import load_project
+from scribae.project import default_project, load_project
 from scribae.translate import (
     LLMPostEditor,
     MarkdownSegmenter,
@@ -118,8 +118,8 @@ def translate(
         None,
         "--tone",
         help=(
-            "Tone register: neutral, formal, academic. If omitted, uses project.tone when --project is set, "
-            "otherwise neutral."
+            "Tone descriptor (free-form). Example: neutral, formal, academic, playful. "
+            "If omitted, uses project.tone when --project is set, otherwise neutral."
         ),
     ),
     audience: str | None = typer.Option(  # noqa: B008
@@ -127,7 +127,7 @@ def translate(
         "--audience",
         help=(
             "Target audience description. If omitted, uses project.audience when --project is set, "
-            "otherwise educated general."
+            "otherwise general readers."
         ),
     ),
     project: str | None = typer.Option(  # noqa: B008
@@ -223,8 +223,10 @@ def translate(
             raise typer.Exit(2) from exc
         if reporter:
             reporter(f"Detected source language: {resolved_src}")
-    resolved_tone = tone or (project_cfg["tone"] if project_cfg else "neutral")
-    resolved_audience = audience or (project_cfg["audience"] if project_cfg else "educated general")
+
+    defaults = default_project()
+    resolved_tone = tone or (project_cfg["tone"] if project_cfg else defaults["tone"])
+    resolved_audience = audience or (project_cfg["audience"] if project_cfg else defaults["audience"])
 
     _validate_language_code(resolved_src, label="--src")
     _validate_language_code(tgt, label="--tgt")

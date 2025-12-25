@@ -16,7 +16,7 @@ Reporter = Callable[[str], None] | None
 @dataclass
 class ToneProfile:
     register: str = "neutral"
-    audience: str = "general"
+    audience: str = "general readers"
 
 
 @dataclass
