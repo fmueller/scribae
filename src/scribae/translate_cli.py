@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import logging
+import os
 from dataclasses import asdict
 from pathlib import Path
 from typing import Any
@@ -21,6 +23,37 @@ from scribae.translate import (
 )
 
 translate_app = typer.Typer()
+
+_LIBRARY_LOGGERS = ("transformers", "huggingface_hub", "sentencepiece", "fasttext", "fast_langdetect")
+
+
+def _configure_library_logging() -> None:
+    os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
+    os.environ.setdefault("HF_HUB_DISABLE_PROGRESS_BARS", "1")
+    os.environ.setdefault("TRANSFORMERS_VERBOSITY", "error")
+
+    for logger_name in _LIBRARY_LOGGERS:
+        logging.getLogger(logger_name).setLevel(logging.ERROR)
+
+    try:
+        from transformers.utils import logging as hf_logging
+
+        hf_logging_any: Any = hf_logging
+        hf_logging_any.set_verbosity_error()
+        hf_logging_any.disable_progress_bar()
+    except Exception:
+        pass
+
+    try:
+        from huggingface_hub.utils import logging as hub_logging
+
+        hub_logging_any: Any = hub_logging
+        hub_logging_any.set_verbosity_error()
+        disable_bars = getattr(hub_logging_any, "disable_progress_bars", None)
+        if callable(disable_bars):
+            disable_bars()
+    except Exception:
+        pass
 
 
 def _load_glossary(path: Path | None) -> dict[str, str]:
@@ -147,6 +180,7 @@ def translate(
 ) -> None:
     """Translate a Markdown file using offline MT + local post-edit."""
     reporter = (lambda msg: typer.secho(msg, err=True)) if verbose else None
+    _configure_library_logging()
 
     project_cfg = None
     if project:
@@ -191,8 +225,12 @@ def translate(
     )
 
     try:
+        if reporter:
+            reporter("Fetching translation models...")
         mt.prefetch(steps)
         if postedit:
+            if reporter:
+                reporter("Fetching post-edit language model...")
             posteditor.prefetch_language_model()
     except Exception as exc:
         if not prefetch_only and "nllb" in cfg.mt_backend:

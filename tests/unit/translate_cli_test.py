@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 from pathlib import Path
 from typing import Any, cast
@@ -406,3 +407,31 @@ def test_translate_prefetch_reports_errors(
     assert result.exit_code != 0
     ansi_stripped = re.sub(r"\x1b\[[0-9;]*m", "", result.stderr)
     assert "prefetch failed" in ansi_stripped
+
+
+def test_translate_configures_library_logging_when_not_verbose(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("TOKENIZERS_PARALLELISM", raising=False)
+    monkeypatch.delenv("HF_HUB_DISABLE_PROGRESS_BARS", raising=False)
+    monkeypatch.delenv("TRANSFORMERS_VERBOSITY", raising=False)
+
+    from scribae import translate_cli
+
+    translate_cli._configure_library_logging()
+
+    assert os.environ["TOKENIZERS_PARALLELISM"] == "false"
+    assert os.environ["HF_HUB_DISABLE_PROGRESS_BARS"] == "1"
+    assert os.environ["TRANSFORMERS_VERBOSITY"] == "error"
+
+
+def test_translate_configures_library_logging_respects_verbose(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("TOKENIZERS_PARALLELISM", raising=False)
+    monkeypatch.delenv("HF_HUB_DISABLE_PROGRESS_BARS", raising=False)
+    monkeypatch.delenv("TRANSFORMERS_VERBOSITY", raising=False)
+
+    from scribae import translate_cli
+
+    translate_cli._configure_library_logging()
+
+    assert os.environ["TOKENIZERS_PARALLELISM"] == "false"
+    assert os.environ["HF_HUB_DISABLE_PROGRESS_BARS"] == "1"
+    assert os.environ["TRANSFORMERS_VERBOSITY"] == "error"
