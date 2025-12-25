@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 from dataclasses import asdict
 from pathlib import Path
 from typing import Any
@@ -10,6 +11,7 @@ from typing import Any
 import typer
 import yaml
 
+from scribae.language import LanguageResolutionError, detect_language, normalize_language
 from scribae.llm import DEFAULT_MODEL_NAME
 from scribae.project import load_project
 from scribae.translate import (
@@ -25,6 +27,7 @@ from scribae.translate import (
 translate_app = typer.Typer()
 
 _LIBRARY_LOGGERS = ("transformers", "huggingface_hub", "sentencepiece", "fasttext", "fast_langdetect")
+_LANGUAGE_CODE_RE = re.compile(r"^[A-Za-z]{2,3}$|^[A-Za-z]{3}[-_][A-Za-z]{4}$")
 
 
 def _configure_library_logging() -> None:
@@ -67,6 +70,14 @@ def _load_glossary(path: Path | None) -> dict[str, str]:
 
 def _debug_path(base: Path) -> Path:
     return base.with_suffix(base.suffix + ".debug.json")
+
+
+def _validate_language_code(value: str, *, label: str) -> None:
+    cleaned = value.strip()
+    if not cleaned or not _LANGUAGE_CODE_RE.fullmatch(cleaned):
+        raise typer.BadParameter(
+            f"{label} must be a language code like en or eng_Latn; received '{value}'."
+        )
 
 
 @translate_app.command()
@@ -186,6 +197,12 @@ def translate(
     reporter = (lambda msg: typer.secho(msg, err=True)) if verbose else None
     _configure_library_logging()
 
+    if input_path is None and not prefetch_only:
+        raise typer.BadParameter("--in is required unless --prefetch-only")
+
+    input_text: str | None = None
+    detected_src: str | None = None
+
     project_cfg = None
     if project:
         try:
@@ -195,12 +212,22 @@ def translate(
             raise typer.Exit(5) from exc
     resolved_src = src or (project_cfg["language"] if project_cfg else None)
     if not resolved_src:
-        raise typer.BadParameter("--src is required unless --project provides a language")
+        if input_path is None:
+            raise typer.BadParameter("--src is required unless --project provides a language or --in is set")
+        try:
+            input_text = input_path.read_text(encoding="utf-8")
+            detected_src = detect_language(input_text)
+            resolved_src = detected_src
+        except LanguageResolutionError as exc:
+            typer.secho(str(exc), err=True, fg=typer.colors.RED)
+            raise typer.Exit(2) from exc
+        if reporter:
+            reporter(f"Detected source language: {resolved_src}")
     resolved_tone = tone or (project_cfg["tone"] if project_cfg else "neutral")
     resolved_audience = audience or (project_cfg["audience"] if project_cfg else "educated general")
 
-    if input_path is None and not prefetch_only:
-        raise typer.BadParameter("--in is required unless --prefetch-only")
+    _validate_language_code(resolved_src, label="--src")
+    _validate_language_code(tgt, label="--tgt")
 
     glossary_map = _load_glossary(glossary)
     tone_profile = ToneProfile(register=resolved_tone, audience=resolved_audience)
@@ -261,7 +288,18 @@ def translate(
         return
 
     assert input_path is not None
-    text = input_path.read_text(encoding="utf-8")
+    text = input_text or input_path.read_text(encoding="utf-8")
+    try:
+        detected_src = detected_src or detect_language(text)
+    except LanguageResolutionError as exc:
+        typer.secho(f"Language detection failed: {exc}", err=True, fg=typer.colors.YELLOW)
+        detected_src = None
+    if detected_src and normalize_language(detected_src) != normalize_language(resolved_src):
+        typer.secho(
+            f"Warning: detected source language '{detected_src}' does not match --src '{resolved_src}'.",
+            err=True,
+            fg=typer.colors.YELLOW,
+        )
     debug_records: list[dict[str, Any]] = []
     segmenter = MarkdownSegmenter(protected_patterns=protect)
     pipeline = TranslationPipeline(

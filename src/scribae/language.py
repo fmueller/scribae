@@ -71,6 +71,15 @@ def resolve_output_language(
     return LanguageResolution(language=detected, source="detected")
 
 
+def detect_language(text: str, language_detector: Callable[[str], str] | None = None) -> str:
+    """Detect the language for the provided text."""
+
+    detected = _detect_language(text, language_detector)
+    if detected is None:
+        raise LanguageResolutionError("Unable to detect language from the content.")
+    return detected
+
+
 def ensure_language_output(
     *,
     prompt: str,
@@ -217,6 +226,7 @@ __all__ = [
     "LanguageResolution",
     "LanguageResolutionError",
     "LanguageMismatchError",
+    "detect_language",
     "ensure_language_output",
     "normalize_language",
     "resolve_output_language",
