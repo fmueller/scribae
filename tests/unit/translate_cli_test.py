@@ -362,6 +362,49 @@ def test_translate_prefetch_runs_before_translation(
     assert cfg.tone.audience == "general readers"
 
 
+def test_translate_verbose_logs_language_detection_start(
+    stub_translation_components: dict[str, Any],
+    input_markdown: Path,
+) -> None:
+    result = runner.invoke(
+        app,
+        [
+            "translate",
+            "--src",
+            "en",
+            "--tgt",
+            "de",
+            "--in",
+            str(input_markdown),
+            "--verbose",
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert "Starting language detection." in result.stderr
+
+
+def test_translate_non_verbose_hides_language_detection_start(
+    stub_translation_components: dict[str, Any],
+    input_markdown: Path,
+) -> None:
+    result = runner.invoke(
+        app,
+        [
+            "translate",
+            "--src",
+            "en",
+            "--tgt",
+            "de",
+            "--in",
+            str(input_markdown),
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert "Starting language detection." not in result.stderr
+
+
 def test_translate_prefetch_skips_postedit_when_disabled(
     stub_translation_components: dict[str, Any],
     input_markdown: Path,

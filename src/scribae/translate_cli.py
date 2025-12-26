@@ -58,6 +58,23 @@ def _configure_library_logging() -> None:
     except Exception:
         pass
 
+    try:
+        import fast_langdetect.infer as fast_langdetect_infer  # type: ignore[import-untyped]
+        import robust_downloader  # type: ignore[import-untyped]
+
+        original_download = robust_downloader.download
+        if getattr(original_download, "__name__", "") != "quiet_download":
+
+            def quiet_download(*args: Any, **kwargs: Any) -> None:
+                kwargs.setdefault("show_progress", False)
+                kwargs.setdefault("logging_level", logging.ERROR)
+                original_download(*args, **kwargs)
+
+            robust_downloader.download = quiet_download
+            fast_langdetect_infer.download = quiet_download
+    except Exception:
+        pass
+
 
 def _load_glossary(path: Path | None) -> dict[str, str]:
     if path is None:
@@ -216,6 +233,8 @@ def translate(
             raise typer.BadParameter("--src is required unless --project provides a language or --in is set")
         try:
             input_text = input_path.read_text(encoding="utf-8")
+            if reporter:
+                reporter("Starting language detection.")
             detected_src = detect_language(input_text)
             resolved_src = detected_src
         except LanguageResolutionError as exc:
@@ -292,7 +311,10 @@ def translate(
     assert input_path is not None
     text = input_text or input_path.read_text(encoding="utf-8")
     try:
-        detected_src = detected_src or detect_language(text)
+        if detected_src is None:
+            if reporter:
+                reporter("Starting language detection.")
+            detected_src = detect_language(text)
     except LanguageResolutionError as exc:
         typer.secho(f"Language detection failed: {exc}", err=True, fg=typer.colors.YELLOW)
         detected_src = None
