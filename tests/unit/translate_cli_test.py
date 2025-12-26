@@ -87,6 +87,7 @@ def stub_translation_components(monkeypatch: pytest.MonkeyPatch) -> dict[str, An
     monkeypatch.setattr("scribae.translate_cli.LLMPostEditor", DummyPostEditor)
     monkeypatch.setattr("scribae.translate_cli.MarkdownSegmenter", DummySegmenter)
     monkeypatch.setattr("scribae.translate_cli.TranslationPipeline", DummyPipeline)
+    monkeypatch.setattr("scribae.translate_cli.detect_language", lambda text: "en")
 
     return calls
 
@@ -113,10 +114,9 @@ def test_translate_requires_src_without_project(
         ],
     )
 
-    assert result.exit_code != 0
-    # Rich/Click may add ANSI color codes; strip them before assertion
-    ansi_stripped = re.sub(r"\x1b\[[0-9;]*m", "", result.stderr)
-    assert "--src is required unless --project provides a language" in ansi_stripped
+    assert result.exit_code == 0
+    cfg = cast(TranslationConfig, stub_translation_components["cfg"])
+    assert cfg.source_lang == "en"
 
 
 def test_translate_uses_project_defaults(
@@ -409,6 +409,53 @@ def test_translate_prefetch_reports_errors(
     assert result.exit_code != 0
     ansi_stripped = re.sub(r"\x1b\[[0-9;]*m", "", result.stderr)
     assert "prefetch failed" in ansi_stripped
+
+
+def test_translate_warns_on_source_mismatch(
+    monkeypatch: pytest.MonkeyPatch,
+    stub_translation_components: dict[str, Any],
+    input_markdown: Path,
+) -> None:
+    monkeypatch.setattr("scribae.translate_cli.detect_language", lambda text: "fr")
+
+    result = runner.invoke(
+        app,
+        [
+            "translate",
+            "--src",
+            "en",
+            "--tgt",
+            "de",
+            "--in",
+            str(input_markdown),
+        ],
+    )
+
+    assert result.exit_code == 0
+    ansi_stripped = re.sub(r"\x1b\[[0-9;]*m", "", result.stderr)
+    assert "detected source language 'fr' does not match --src 'en'" in ansi_stripped
+
+
+def test_translate_rejects_invalid_language_codes(
+    stub_translation_components: dict[str, Any],
+    input_markdown: Path,
+) -> None:
+    result = runner.invoke(
+        app,
+        [
+            "translate",
+            "--src",
+            "english",
+            "--tgt",
+            "de",
+            "--in",
+            str(input_markdown),
+        ],
+    )
+
+    assert result.exit_code != 0
+    ansi_stripped = re.sub(r"\x1b\[[0-9;]*m", "", result.stderr)
+    assert "must be a language code like en or eng_Latn" in ansi_stripped
 
 
 def test_translate_configures_library_logging_when_not_verbose(monkeypatch: pytest.MonkeyPatch) -> None:
