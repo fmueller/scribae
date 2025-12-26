@@ -2,13 +2,14 @@
 
 # Scribae
 
-Scribae is a CLI that turns local Markdown notes into structured SEO content packages. It keeps the
-research-to-publication flow reproducible by combining deterministic prompts, typed outputs, and
-LLMs via OpenAI-compatible APIs (local or remote). The goal is to brief, draft, and finalize articles
-without pasting notes into ad-hoc chat sessions.
+Scribae is a CLI that turns local Markdown notes into structured SEO content packages with human-in-the-loop
+review. It keeps the research-to-publication flow reproducible by combining deterministic prompts, typed outputs,
+and LLMs via OpenAI-compatible APIs. The goal is to brief, draft, and finalize articles without
+pasting notes into ad-hoc chat sessions.
 
 ## Why Scribae?
 - **Keep source material local.** Point the CLI at a Markdown note and run everything against an OpenAI-compatible API endpoint you control (defaults target a local Ollama-style server).
+- **Human in the loop.** Each stage is designed for review and editing before you publish or ship outputs.
 - **Repeatable prompts.** Each command builds structured prompts and validates model responses to catch schema drift early.
 - **End-to-end workflow.** Move from ideation to translation within one tool instead of juggling separate scripts.
 

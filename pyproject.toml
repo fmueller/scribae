@@ -1,7 +1,7 @@
 [project]
 name = "scribae"
 version = "0.1.0"
-description = "CLI that turns local Markdown notes into structured SEO content packages."
+description = "CLI that turns local Markdown notes into structured SEO content packages using LLMs while keeping the human in the loop."
 readme = "README.md"
 requires-python = ">=3.13"
 license = "Apache-2.0"

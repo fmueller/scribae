@@ -11,8 +11,8 @@ from .write_cli import write_command
 
 app = typer.Typer(
     help=(
-        "Scribae — turn local Markdown notes into reproducible SEO briefs, drafts, metadata, and translations "
-        "using LLMs via OpenAI-compatible APIs."
+        "Scribae — turn local Markdown notes into ideas, SEO briefs, drafts, metadata, and translations "
+        "using LLMs via OpenAI-compatible APIs while keeping the human in the loop."
     ),
     context_settings={"help_option_names": ["-h", "--help"]},
 )
