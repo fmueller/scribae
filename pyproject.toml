@@ -3,7 +3,7 @@ name = "scribae"
 version = "0.1.0"
 description = "CLI that turns local Markdown notes into structured SEO content packages using LLMs while keeping the human in the loop."
 readme = "README.md"
-requires-python = ">=3.13"
+requires-python = ">=3.10"
 license = "Apache-2.0"
 license-files = ["LICENSE"]
 authors = [{ name = "Felix Müller" }]
@@ -22,6 +22,9 @@ classifiers = [
     "Topic :: Text Processing",
     "Topic :: Text Processing :: Linguistic",
     "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
 ]
 dependencies = [
@@ -36,6 +39,7 @@ dependencies = [
     "sacremoses>=0.1.1",
     "fast-langdetect>=1.0.0",
     "fasttext>=0.9.3",
+    "tomli>=2.0.0;python_version<'3.11'",
 ]
 
 [project.scripts]
@@ -79,7 +83,7 @@ select = [
 ]
 
 [tool.mypy]
-python_version = "3.13"
+python_version = "3.10"
 mypy_path = "src"
 files = "src/**/*.py,tests/**/*.py"
 strict = true
@@ -89,7 +93,7 @@ disallow_untyped_defs = true
 warn_unused_ignores = true
 
 [[tool.mypy.overrides]]
-module = ["frontmatter", "yaml"]
+module = ["frontmatter", "yaml", "tomli"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

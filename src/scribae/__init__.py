@@ -1,10 +1,15 @@
 from __future__ import annotations
 
 import subprocess
-import tomllib
+import sys
 from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 from typing import Final
+
+if sys.version_info >= (3, 11):
+    import tomllib
+else:
+    import tomli as tomllib
 
 __all__ = ["__version__"]
 

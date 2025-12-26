@@ -4,7 +4,7 @@
 Source lives under `src/scribae`, with `main.py` exposing the CLI entry point and `__init__.py` handling package exports. Tests sit in `tests/unit`, mirroring module names (e.g., `tests/unit/main_test.py` targets `scribae/main.py`). Keep any future integration fixtures in `tests/integration` and shared helpers in `tests/conftest.py`. Non-Python assets (sample prompts, fixtures) belong in `assets/` so that `pyproject.toml` stays code-focused.
 
 ## Environment & Tooling
-We use [uv](https://github.com/astral-sh/uv) for dependency management. Install everything locally with `uv sync` and run commands via `uv run …` so the locked interpreter (Python 3.13) and dependency set stay consistent.
+We use [uv](https://github.com/astral-sh/uv) for dependency management. Install everything locally with `uv sync` and run commands via `uv run …` so the locked interpreter (Python 3.10+) and dependency set stay consistent.
 
 ## Build, Test, and Development Commands
 - `uv run python -m scribae.main` — invoke the CLI entry point and confirm stdout behavior.
