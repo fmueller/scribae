@@ -151,7 +151,7 @@ def translate(
         None,
         "--project",
         "-p",
-        help="Project name used to load projects/<name>.yaml for translation defaults.",
+        help="Project name (loads <name>.yml/.yaml from current directory) or path to a project file.",
     ),
     postedit: bool = typer.Option(  # noqa: B008
         True,

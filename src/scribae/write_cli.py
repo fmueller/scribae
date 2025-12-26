@@ -34,7 +34,7 @@ def write_command(
         None,
         "--project",
         "-p",
-        help="Project name used to load projects/<name>.yaml for prompt context.",
+        help="Project name (loads <name>.yml/.yaml from current directory) or path to a project file.",
     ),
     language: str | None = typer.Option(  # noqa: B008
         None,

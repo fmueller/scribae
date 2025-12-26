@@ -37,10 +37,7 @@ def default_project() -> ProjectConfig:
 
 def load_project(name: str, *, base_dir: Path | None = None) -> ProjectConfig:
     """Load a project YAML file and normalize its structure."""
-    projects_dir = base_dir or Path("projects")
-    path = projects_dir / f"{name}.yaml"
-    if not path.exists():
-        raise FileNotFoundError(f"Project config {path} not found")
+    path = _resolve_project_path(name, base_dir=base_dir)
 
     try:
         text = path.read_text(encoding="utf-8")
@@ -56,6 +53,28 @@ def load_project(name: str, *, base_dir: Path | None = None) -> ProjectConfig:
         raise ValueError(f"Project config {path} must be a mapping")
 
     return _merge_with_defaults(raw_data)
+
+
+def _resolve_project_path(name: str, *, base_dir: Path | None = None) -> Path:
+    candidate = Path(name)
+    if candidate.is_file():
+        return candidate
+
+    search_dir = base_dir or Path(".")
+    if candidate.suffix in {".yml", ".yaml"}:
+        resolved = candidate if candidate.is_absolute() else search_dir / candidate
+        if resolved.exists():
+            return resolved
+        raise FileNotFoundError(f"Project config {resolved} not found")
+
+    for suffix in (".yaml", ".yml"):
+        resolved = search_dir / f"{name}{suffix}"
+        if resolved.exists():
+            return resolved
+
+    raise FileNotFoundError(
+        f"Project config {search_dir / f'{name}.yaml'} or {search_dir / f'{name}.yml'} not found"
+    )
 
 
 def _merge_with_defaults(data: Mapping[str, Any]) -> ProjectConfig:

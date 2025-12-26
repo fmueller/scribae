@@ -7,13 +7,11 @@ from scribae.project import default_project, load_project
 
 
 def test_load_project_merges_defaults(tmp_path: Path, fake: Faker) -> None:
-    projects_dir = tmp_path / "projects"
-    projects_dir.mkdir()
     site_name = fake.company()
     audience = fake.sentence(nb_words=3)
     keywords = [fake.word(), fake.word()]
     language = fake.random_element(["en", "de", "fr"])
-    (projects_dir / "focus.yaml").write_text(
+    (tmp_path / "focus.yml").write_text(
         f"""
 site_name: "{site_name}"
 audience: "{audience}"
@@ -23,7 +21,7 @@ language: "{language}"
         encoding="utf-8",
     )
 
-    config = load_project("focus", base_dir=projects_dir)
+    config = load_project("focus", base_dir=tmp_path)
 
     assert config["site_name"] == site_name
     assert config["audience"] == audience
@@ -35,6 +33,16 @@ language: "{language}"
 def test_load_project_missing_file(tmp_path: Path) -> None:
     with pytest.raises(FileNotFoundError):
         load_project("unknown", base_dir=tmp_path)
+
+
+def test_load_project_uses_explicit_path(tmp_path: Path, fake: Faker) -> None:
+    path = tmp_path / "custom.yaml"
+    site_name = fake.company()
+    path.write_text(f'site_name: "{site_name}"', encoding="utf-8")
+
+    config = load_project(str(path))
+
+    assert config["site_name"] == site_name
 
 
 def test_default_project_returns_copy() -> None:
