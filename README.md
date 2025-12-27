@@ -2,6 +2,8 @@
 
 # Scribae
 
+> *From Latin scribae, "the scribes." The professional copyists and secretaries of the ancient world.*
+
 Scribae is a CLI that turns local Markdown notes into structured SEO content packages with human-in-the-loop
 review. It keeps the research-to-publication flow reproducible by combining deterministic prompts, typed outputs,
 and LLMs via OpenAI-compatible APIs. The goal is to brief, draft, and finalize articles without
