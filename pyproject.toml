@@ -6,7 +6,7 @@ readme = "README.md"
 requires-python = ">=3.10"
 license = "Apache-2.0"
 license-files = ["LICENSE"]
-authors = [{ name = "Felix Müller" }]
+authors = [{ name = "Felix Müller", email = "felix@fmueller.io" }]
 keywords = [
     "cli",
     "content",
@@ -18,14 +18,17 @@ keywords = [
     "writing",
 ]
 classifiers = [
+    "Development Status :: 3 - Alpha",
     "Environment :: Console",
-    "Topic :: Text Processing",
-    "Topic :: Text Processing :: Linguistic",
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
+    "Topic :: Text Processing",
+    "Topic :: Text Processing :: Linguistic",
 ]
 dependencies = [
     "pydantic>=2.12.4",
@@ -49,6 +52,7 @@ scribae = "scribae.main:app"
 Homepage = "https://github.com/fmueller/scribae"
 Repository = "https://github.com/fmueller/scribae"
 Issues = "https://github.com/fmueller/scribae/issues"
+Changelog = "https://github.com/fmueller/scribae/blob/main/CHANGELOG.md"
 
 [tool.uv]
 package = true
