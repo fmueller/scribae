@@ -39,7 +39,7 @@ keeping placeholders, links, and numbers intact.
   NLLB codes (e.g., `eng_Latn`, `deu_Latn`, `spa_Latn`). You can also pass NLLB codes directly via `--src`/`--tgt`.
 
 ## Quick start
-1. Install [uv](https://github.com/astral-sh/uv) and sync dependencies (Python 3.13 is managed by uv):
+1. Install [uv](https://github.com/astral-sh/uv) and sync dependencies (Python 3.12 is managed by uv):
    ```bash
    uv sync --locked --all-extras --dev
    ```
