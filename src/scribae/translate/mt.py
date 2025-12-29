@@ -63,9 +63,9 @@ class MTTranslator:
     def _require_torch(self) -> Any:
         if importlib.util.find_spec("torch") is None:
             raise RuntimeError(
-                "Translation requires PyTorch. Install the translation extras with "
-                "`uv sync --extra translation` (default GPU build) or "
-                "`uv sync --extra translation-cpu` (CPU-only build)."
+                "Translation requires PyTorch. Install it with "
+                "`uv sync --extra translation` or "
+                "`uv sync --extra translation --index pytorch-cpu` (CPU-only)."
             )
         import torch
 
