@@ -38,18 +38,37 @@ keeping placeholders, links, and numbers intact.
 - **NLLB fallback.** When pivoting fails, the pipeline falls back to NLLB. ISO codes like `en`/`de`/`es` are mapped to
   NLLB codes (e.g., `eng_Latn`, `deu_Latn`, `spa_Latn`). You can also pass NLLB codes directly via `--src`/`--tgt`.
 
+### Translation dependencies
+Translation uses PyTorch and Hugging Face Transformers. Install one of the translation extras before running
+`scribae translate`:
+```bash
+uv sync --locked --dev --extra translation
+```
+To avoid CUDA downloads on Linux, install the CPU-only extra instead:
+```bash
+uv sync --locked --dev --extra translation-cpu
+```
+
 ## Quick start
 1. Install [uv](https://github.com/astral-sh/uv) and sync dependencies (Python 3.12 is managed by uv):
    ```bash
-   uv sync --locked --all-extras --dev
+   uv sync --locked --dev
    ```
-2. (Optional) Point Scribae at your model endpoint:
+2. (Optional) Install translation dependencies:
+   ```bash
+   uv sync --locked --dev --extra translation
+   ```
+   Use the CPU-only build on Linux if you want to avoid CUDA downloads:
+   ```bash
+   uv sync --locked --dev --extra translation-cpu
+   ```
+3. (Optional) Point Scribae at your model endpoint:
    ```bash
    export OPENAI_BASE_URL="http://localhost:11434/v1"
    export OPENAI_API_KEY="no-key"
    # or use OPENAI_API_BASE if you prefer
    ```
-3. Run the CLI:
+4. Run the CLI:
    ```bash
    uv run scribae --help
    ```
