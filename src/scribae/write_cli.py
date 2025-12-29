@@ -5,7 +5,7 @@ from pathlib import Path
 import typer
 
 from .llm import DEFAULT_MODEL_NAME
-from .project import default_project, load_project
+from .project import load_default_project, load_project
 from .write import (
     EvidenceMode,
     WritingError,
@@ -117,13 +117,6 @@ def write_command(
     out_path = out.expanduser() if out else None
 
     reporter = (lambda msg: typer.secho(msg, err=True)) if verbose else None
-    project_config = default_project()
-    if not project:
-        typer.secho(
-            "No project provided; using default context (language=en, tone=neutral).",
-            err=True,
-            fg=typer.colors.YELLOW,
-        )
 
     if project:
         try:
@@ -131,6 +124,18 @@ def write_command(
         except (FileNotFoundError, ValueError, OSError) as exc:
             typer.secho(str(exc), err=True, fg=typer.colors.RED)
             raise typer.Exit(5) from exc
+    else:
+        try:
+            project_config, project_source = load_default_project()
+        except (FileNotFoundError, ValueError, OSError) as exc:
+            typer.secho(str(exc), err=True, fg=typer.colors.RED)
+            raise typer.Exit(5) from exc
+        if not project_source:
+            typer.secho(
+                "No project provided; using default context (language=en, tone=neutral).",
+                err=True,
+                fg=typer.colors.YELLOW,
+            )
 
     try:
         context = prepare_context(

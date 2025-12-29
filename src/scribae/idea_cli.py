@@ -6,7 +6,7 @@ import typer
 
 from .idea import IdeaError, generate_ideas, prepare_context, render_json, save_prompt_artifacts
 from .llm import DEFAULT_MODEL_NAME
-from .project import default_project, load_project
+from .project import load_default_project, load_project
 
 
 def _validate_output_options(out: Path | None, json_output: bool, *, dry_run: bool) -> None:
@@ -113,14 +113,6 @@ def idea_command(
     _validate_output_options(out, json_output, dry_run=dry_run)
 
     reporter = (lambda msg: typer.secho(msg, err=True)) if verbose else None
-    project_config = default_project()
-    project_label = "default"
-    if not project:
-        typer.secho(
-            "No project provided; using default context (language=en, tone=neutral).",
-            err=True,
-            fg=typer.colors.YELLOW,
-        )
 
     if project:
         try:
@@ -129,6 +121,21 @@ def idea_command(
         except (FileNotFoundError, ValueError, OSError) as exc:
             typer.secho(str(exc), err=True, fg=typer.colors.RED)
             raise typer.Exit(5) from exc
+    else:
+        try:
+            project_config, project_source = load_default_project()
+        except (FileNotFoundError, ValueError, OSError) as exc:
+            typer.secho(str(exc), err=True, fg=typer.colors.RED)
+            raise typer.Exit(5) from exc
+        if project_source:
+            project_label = project_source
+        else:
+            project_label = "default"
+            typer.secho(
+                "No project provided; using default context (language=en, tone=neutral).",
+                err=True,
+                fg=typer.colors.YELLOW,
+            )
 
     try:
         context = prepare_context(

@@ -13,7 +13,7 @@ import yaml
 
 from scribae.language import LanguageResolutionError, detect_language, normalize_language
 from scribae.llm import DEFAULT_MODEL_NAME
-from scribae.project import default_project, load_project
+from scribae.project import load_default_project, load_project
 from scribae.translate import (
     LLMPostEditor,
     MarkdownSegmenter,
@@ -220,14 +220,19 @@ def translate(
     input_text: str | None = None
     detected_src: str | None = None
 
-    project_cfg = None
     if project:
         try:
             project_cfg = load_project(project)
         except (FileNotFoundError, ValueError, OSError) as exc:
             typer.secho(str(exc), err=True, fg=typer.colors.RED)
             raise typer.Exit(5) from exc
-    resolved_src = src or (project_cfg["language"] if project_cfg else None)
+    else:
+        try:
+            project_cfg, _ = load_default_project()
+        except (FileNotFoundError, ValueError, OSError) as exc:
+            typer.secho(str(exc), err=True, fg=typer.colors.RED)
+            raise typer.Exit(5) from exc
+    resolved_src = src or project_cfg["language"]
     if not resolved_src:
         if input_path is None:
             raise typer.BadParameter("--src is required unless --project provides a language or --in is set")
@@ -243,9 +248,8 @@ def translate(
         if reporter:
             reporter(f"Detected source language: {resolved_src}")
 
-    defaults = default_project()
-    resolved_tone = tone or (project_cfg["tone"] if project_cfg else defaults["tone"])
-    resolved_audience = audience or (project_cfg["audience"] if project_cfg else defaults["audience"])
+    resolved_tone = tone or project_cfg["tone"]
+    resolved_audience = audience or project_cfg["audience"]
 
     _validate_language_code(resolved_src, label="--src")
     _validate_language_code(tgt, label="--tgt")

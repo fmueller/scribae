@@ -35,6 +35,20 @@ def default_project() -> ProjectConfig:
     return _merge_with_defaults({})
 
 
+def load_default_project(base_dir: Path | None = None) -> tuple[ProjectConfig, str | None]:
+    """Try scribae.yaml/.yml in base_dir, fall back to defaults.
+
+    Returns a tuple of (config, source) where source is the path to the
+    loaded file or None if defaults were used.
+    """
+    search_dir = base_dir or Path(".")
+    for suffix in (".yaml", ".yml"):
+        candidate = search_dir / f"scribae{suffix}"
+        if candidate.exists():
+            return load_project(str(candidate)), str(candidate)
+    return default_project(), None
+
+
 def load_project(name: str, *, base_dir: Path | None = None) -> ProjectConfig:
     """Load a project YAML file and normalize its structure."""
     path = _resolve_project_path(name, base_dir=base_dir)

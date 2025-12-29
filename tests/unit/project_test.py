@@ -3,7 +3,7 @@ from pathlib import Path
 import pytest
 from faker import Faker
 
-from scribae.project import default_project, load_project
+from scribae.project import default_project, load_default_project, load_project
 
 
 def test_load_project_merges_defaults(tmp_path: Path, fake: Faker) -> None:
@@ -49,3 +49,49 @@ def test_default_project_returns_copy() -> None:
     config = default_project()
     config["site_name"] = "Changed"
     assert default_project()["site_name"] == "Scribae"
+
+
+def test_load_default_project_finds_scribae_yaml(tmp_path: Path, fake: Faker) -> None:
+    site_name = fake.company()
+    (tmp_path / "scribae.yaml").write_text(f'site_name: "{site_name}"', encoding="utf-8")
+
+    config, source = load_default_project(base_dir=tmp_path)
+
+    assert config["site_name"] == site_name
+    assert source == str(tmp_path / "scribae.yaml")
+
+
+def test_load_default_project_finds_scribae_yml(tmp_path: Path, fake: Faker) -> None:
+    site_name = fake.company()
+    (tmp_path / "scribae.yml").write_text(f'site_name: "{site_name}"', encoding="utf-8")
+
+    config, source = load_default_project(base_dir=tmp_path)
+
+    assert config["site_name"] == site_name
+    assert source == str(tmp_path / "scribae.yml")
+
+
+def test_load_default_project_prefers_yaml_over_yml(tmp_path: Path, fake: Faker) -> None:
+    yaml_site = fake.company()
+    yml_site = fake.company()
+    (tmp_path / "scribae.yaml").write_text(f'site_name: "{yaml_site}"', encoding="utf-8")
+    (tmp_path / "scribae.yml").write_text(f'site_name: "{yml_site}"', encoding="utf-8")
+
+    config, source = load_default_project(base_dir=tmp_path)
+
+    assert config["site_name"] == yaml_site
+    assert source == str(tmp_path / "scribae.yaml")
+
+
+def test_load_default_project_falls_back_to_defaults(tmp_path: Path) -> None:
+    config, source = load_default_project(base_dir=tmp_path)
+
+    assert config == default_project()
+    assert source is None
+
+
+def test_load_default_project_raises_on_invalid_yaml(tmp_path: Path) -> None:
+    (tmp_path / "scribae.yaml").write_text("invalid: [yaml: content", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="Invalid YAML"):
+        load_default_project(base_dir=tmp_path)

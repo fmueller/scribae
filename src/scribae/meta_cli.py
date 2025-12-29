@@ -23,7 +23,7 @@ from .meta import (
     render_json,
     save_prompt_artifacts,
 )
-from .project import default_project, load_project
+from .project import load_default_project, load_project
 
 
 def meta_command(
@@ -129,19 +129,24 @@ def meta_command(
     if not dry_run and out is None:
         raise typer.BadParameter("Choose an output destination with --out.", param_hint="--out")
 
-    project_config = default_project()
-    if not project:
-        typer.secho(
-            "No project provided; using default context (language=en, tone=neutral).",
-            err=True,
-            fg=typer.colors.YELLOW,
-        )
     if project:
         try:
             project_config = load_project(project)
         except (FileNotFoundError, ValueError, OSError) as exc:
             typer.secho(str(exc), err=True, fg=typer.colors.RED)
             raise typer.Exit(5) from exc
+    else:
+        try:
+            project_config, project_source = load_default_project()
+        except (FileNotFoundError, ValueError, OSError) as exc:
+            typer.secho(str(exc), err=True, fg=typer.colors.RED)
+            raise typer.Exit(5) from exc
+        if not project_source:
+            typer.secho(
+                "No project provided; using default context (language=en, tone=neutral).",
+                err=True,
+                fg=typer.colors.YELLOW,
+            )
 
     body_path = body.expanduser()
     brief_path = brief.expanduser() if brief else None

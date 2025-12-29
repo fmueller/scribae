@@ -8,7 +8,7 @@ import typer
 from . import brief
 from .brief import BriefingError
 from .llm import DEFAULT_MODEL_NAME
-from .project import default_project, load_project
+from .project import load_default_project, load_project
 
 
 def _validate_output_options(
@@ -167,14 +167,6 @@ def brief_command(
         raise typer.BadParameter("--idea-all cannot be combined with --save-prompt.", param_hint="--idea-all")
 
     reporter = (lambda msg: typer.secho(msg, err=True)) if verbose else None
-    project_config = default_project()
-    project_label = "default"
-    if not project:
-        typer.secho(
-            "No project provided; using default context (language=en, tone=neutral).",
-            err=True,
-            fg=typer.colors.YELLOW,
-        )
 
     if project:
         try:
@@ -183,6 +175,21 @@ def brief_command(
         except (FileNotFoundError, ValueError, OSError) as exc:
             typer.secho(str(exc), err=True, fg=typer.colors.RED)
             raise typer.Exit(5) from exc
+    else:
+        try:
+            project_config, project_source = load_default_project()
+        except (FileNotFoundError, ValueError, OSError) as exc:
+            typer.secho(str(exc), err=True, fg=typer.colors.RED)
+            raise typer.Exit(5) from exc
+        if project_source:
+            project_label = project_source
+        else:
+            project_label = "default"
+            typer.secho(
+                "No project provided; using default context (language=en, tone=neutral).",
+                err=True,
+                fg=typer.colors.YELLOW,
+            )
 
     ideas_path = ideas.expanduser() if ideas else None
     out_dir_path = out_dir.expanduser() if out_dir else None
