@@ -248,3 +248,29 @@ def test_mt_translator_batches_and_preserves_order() -> None:
     assert outputs == ["A", "B"]
     assert len(calls) == 1
     assert calls[0] == ["a", "b"]
+
+
+def test_prefetch_shows_pytorch_error_not_huggingface_message() -> None:
+    """Verify that missing PyTorch shows a helpful install message, not a generic HuggingFace error."""
+
+    class MissingPyTorchMT(MTTranslator):
+        def _require_torch(self) -> None:  # type: ignore[override]
+            raise RuntimeError(
+                "Translation requires PyTorch. Install it with "
+                "`uv sync --extra translation` or "
+                "`uv sync --extra translation --index pytorch-cpu` (CPU-only)."
+            )
+
+    registry = ModelRegistry()
+    mt = MissingPyTorchMT(registry=registry)
+    steps = registry.route("en", "de")
+
+    try:
+        mt.prefetch(steps)
+        raise AssertionError("Expected RuntimeError for missing PyTorch")
+    except RuntimeError as exc:
+        # Should show the helpful PyTorch message, NOT the generic HuggingFace message
+        assert "PyTorch" in str(exc)
+        assert "uv sync" in str(exc)
+        assert "HuggingFace" not in str(exc).lower()
+        assert "credentials" not in str(exc).lower()

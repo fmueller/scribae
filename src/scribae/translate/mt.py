@@ -73,9 +73,13 @@ class MTTranslator:
 
     def prefetch(self, steps: Iterable[RouteStep]) -> None:
         """Warm translation pipelines for the provided route steps."""
+        self._require_torch()
         for step in steps:
             try:
                 self._pipeline_for(step.model.model_id)
+            except RuntimeError:
+                # Re-raise RuntimeError (e.g., from _require_torch) without wrapping
+                raise
             except Exception as exc:  # pragma: no cover - depends on HF runtime errors
                 raise RuntimeError(
                     f"Failed to prefetch translation model '{step.model.model_id}'. "
