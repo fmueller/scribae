@@ -11,13 +11,18 @@ Scribae is a CLI tool that transforms local Markdown notes into structured SEO c
 ## Build & Development Commands
 
 ```bash
-uv sync --locked --all-extras --dev   # Install dependencies
+uv sync --locked --all-extras --dev   # Install dependencies (includes PyTorch with CUDA)
 uv run scribae --help                 # Run CLI
 uv run ruff check                     # Lint (auto-fix: --fix)
 uv run mypy                           # Type check
 uv run pytest                         # Run tests
 uv run pytest tests/unit/foo_test.py  # Run single test file
 uv run pytest -k "test_name"          # Run tests matching pattern
+```
+
+For a lighter install (~200MB vs ~2GB), use the CPU-only PyTorch index:
+```bash
+uv sync --locked --all-extras --dev --index pytorch-cpu
 ```
 
 **Important:** Always run tests, mypy, and ruff at the end of your task and fix any issues.
