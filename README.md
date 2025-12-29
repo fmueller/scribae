@@ -39,14 +39,14 @@ keeping placeholders, links, and numbers intact.
   NLLB codes (e.g., `eng_Latn`, `deu_Latn`, `spa_Latn`). You can also pass NLLB codes directly via `--src`/`--tgt`.
 
 ### Translation dependencies
-Translation uses PyTorch and Hugging Face Transformers. Install one of the translation extras before running
+Translation uses PyTorch and Hugging Face Transformers. Install the translation extra before running
 `scribae translate`:
 ```bash
 uv sync --locked --dev --extra translation
 ```
-To avoid CUDA downloads on Linux, install the CPU-only extra instead:
+To avoid downloading CUDA libraries (~2GB), use the CPU-only PyTorch index instead:
 ```bash
-uv sync --locked --dev --extra translation-cpu
+uv sync --locked --dev --extra translation --index pytorch-cpu
 ```
 
 ## Quick start
@@ -58,9 +58,9 @@ uv sync --locked --dev --extra translation-cpu
    ```bash
    uv sync --locked --dev --extra translation
    ```
-   Use the CPU-only build on Linux if you want to avoid CUDA downloads:
+   Use the CPU-only index if you want to avoid CUDA downloads:
    ```bash
-   uv sync --locked --dev --extra translation-cpu
+   uv sync --locked --dev --extra translation --index pytorch-cpu
    ```
 3. (Optional) Point Scribae at your model endpoint:
    ```bash
