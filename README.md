@@ -6,122 +6,225 @@
 
 Scribae is a CLI that turns local Markdown notes into structured SEO content packages with human-in-the-loop
 review. It keeps the research-to-publication flow reproducible by combining deterministic prompts, typed outputs,
-and LLMs via OpenAI-compatible APIs. The goal is to brief, draft, and finalize articles without
-pasting notes into ad-hoc chat sessions.
+and LLMs via OpenAI-compatible APIs.
 
 ## Why Scribae?
-- **Keep source material local.** Point the CLI at a Markdown note and run everything against an OpenAI-compatible API endpoint you control (defaults target a local Ollama-style server).
-- **Human in the loop.** Each stage is designed for review and editing before you publish or ship outputs.
+
+- **Keep source material local.** Point the CLI at a Markdown note and run everything against an OpenAI-compatible API endpoint you control.
+- **Human in the loop.** Each stage is designed for review and editing before you publish.
 - **Repeatable prompts.** Each command builds structured prompts and validates model responses to catch schema drift early.
 - **End-to-end workflow.** Move from ideation to translation within one tool instead of juggling separate scripts.
 
-## Core workflow
-1. Generate ideas from a note.
-2. Turn a selected idea into an SEO brief.
-3. Draft the article from the brief.
-4. Add metadata/frontmatter.
-5. Translate or post-edit the final draft.
+## Installation
 
-## Feature overview
-- `scribae idea`: Brainstorm article ideas from a note with project-aware guidance.
-- `scribae brief`: Generate a validated SEO brief (keywords, outline, FAQ, metadata) from a note and optional project config.
-- `scribae write`: Produce an article draft using your note, project context, snippets, and a saved `SeoBrief`.
-- `scribae meta`: Create publication metadata/frontmatter for a finished draft.
-- `scribae translate`: Translate Markdown using MT + post-edit cues while preserving formatting.
-
-## Translation behavior
-`scribae translate` runs offline MT first, then optionally applies an LLM post-edit pass to improve fluency while
-keeping placeholders, links, and numbers intact.
-- **Direct MarianMT pairs.** Built-in models cover `en`↔`de/es/fr/it/pt` plus `de`→`es/fr/it/pt` and
-  `es`→`de/fr/it/pt`.
-- **Pivoting via English.** If no direct pair exists and `--allow-pivot` is enabled, Scribae will try `src → en → tgt`.
-- **NLLB fallback.** When pivoting fails, the pipeline falls back to NLLB. ISO codes like `en`/`de`/`es` are mapped to
-  NLLB codes (e.g., `eng_Latn`, `deu_Latn`, `spa_Latn`). You can also pass NLLB codes directly via `--src`/`--tgt`.
-
-### Translation dependencies
-Translation uses PyTorch and Hugging Face Transformers. Install the translation extra before running
-`scribae translate`:
 ```bash
-uv sync --locked --dev --extra translation
+pip install scribae
 ```
-To avoid downloading CUDA libraries (~2GB), use the CPU-only PyTorch index instead:
+
+Or with [pipx](https://pipx.pypa.io/) for isolated installation:
+
 ```bash
-uv sync --locked --dev --extra translation --index pytorch-cpu
+pipx install scribae
+```
+
+### Translation support
+
+Translation uses PyTorch and Hugging Face Transformers. Install with the translation extra:
+
+```bash
+pip install scribae[translation]
+```
+
+## Prerequisites
+
+Scribae requires an **OpenAI-compatible API endpoint**. The easiest option is [Ollama](https://ollama.com) running locally:
+
+```bash
+# Install Ollama (see https://ollama.com for other platforms)
+curl -fsSL https://ollama.com/install.sh | sh
+
+# Start the server
+ollama serve
+
+# Pull the default model
+ollama pull ministral-3:8b
+```
+
+Alternatively, point Scribae at any OpenAI-compatible endpoint:
+
+```bash
+export OPENAI_BASE_URL="https://api.openai.com/v1"
+export OPENAI_API_KEY="sk-..."
 ```
 
 ## Quick start
-1. Install [uv](https://github.com/astral-sh/uv) and sync dependencies (Python 3.12 is managed by uv):
+
+1. **Generate ideas** from a Markdown note:
    ```bash
-   uv sync --locked --dev
-   ```
-2. (Optional) Install translation dependencies:
-   ```bash
-   uv sync --locked --dev --extra translation
-   ```
-   Use the CPU-only index if you want to avoid CUDA downloads:
-   ```bash
-   uv sync --locked --dev --extra translation --index pytorch-cpu
-   ```
-3. (Optional) Point Scribae at your model endpoint:
-   ```bash
-   export OPENAI_BASE_URL="http://localhost:11434/v1"
-   export OPENAI_API_KEY="no-key"
-   # or use OPENAI_API_BASE if you prefer
-   ```
-4. Run the CLI:
-   ```bash
-   uv run scribae --help
+   scribae idea --note my-notes.md --json
    ```
 
-## Testing
-Run the same checks as CI:
-```bash
-uv run ruff check
-uv run mypy
-uv run pytest
+2. **Create an SEO brief** from your note:
+   ```bash
+   scribae brief --note my-notes.md --out brief.json
+   ```
+
+3. **Write a draft** using the brief:
+   ```bash
+   scribae write --note my-notes.md --brief brief.json --out draft.md
+   ```
+
+4. **Add metadata** to your draft:
+   ```bash
+   scribae meta --body draft.md --brief brief.json --format frontmatter --out draft.md
+   ```
+
+5. **Translate** to another language:
+   ```bash
+   scribae translate --src en --tgt de --in draft.md --out draft.de.md
+   ```
+
+Run `scribae --help` to see all commands and options.
+
+## Core workflow
+
+```
+idea → brief → write → meta → translate
 ```
 
-## Usage
-- Inspect the CLI:
-  ```bash
-  uv run scribae --help
-  ```
-- Generate ideas from a note:
-  ```bash
-  uv run scribae idea --note path/to/note.md --json
-  ```
-- Generate a brief from a note or idea:
-  ```bash
-  uv run scribae brief --note path/to/note.md --json
-  ```
-- Draft an article body (expects a `SeoBrief` JSON file):
-  ```bash
-  uv run scribae write --note path/to/note.md --brief path/to/brief.json --out draft.md
-  ```
-- Other commands follow the same pattern (`scribae meta`, `scribae translate`). Add
-  `--verbose` to stream progress and `--save-prompt` on `brief` to persist prompt snapshots.
+1. **idea** — Brainstorm article ideas from a note with project-aware guidance.
+2. **brief** — Generate a validated SEO brief (keywords, outline, FAQ, metadata).
+3. **write** — Produce an article draft using your note, project context, and brief.
+4. **meta** — Create publication metadata/frontmatter for a finished draft.
+5. **translate** — Translate Markdown using MT + LLM post-edit while preserving formatting.
 
-## Use cases
-- **Idea discovery.** Start with a note and generate a structured list of candidate articles. Use `--project` to pull defaults, `--language` or `--model` to override them, and `--json`/`--out` to choose stdout vs file output. `--dry-run` prints the prompt without calling a model.
-  ```bash
-  uv run scribae idea --note notes.md --project demo --out ideas.json
-  ```
-- **SEO brief creation.** Convert a note (optionally anchored to an idea) into a validated brief. Select ideas with `--ideas` plus `--idea-id`/`--idea-index`, or generate multiple briefs with `--idea-all --out-dir`. Use `--json` for stdout, `--out` for a file, and `--save-prompt` to persist prompt artifacts.
-  ```bash
-  uv run scribae brief --note notes.md --ideas ideas.json --idea-index 1 --out brief.json
-  ```
-- **Draft writing.** Turn a note + brief into a draft. Use `--section N..M` to draft only part of the outline, `--evidence required` for citations, and `--dry-run` to preview the first prompt. Write to `--out` or rely on stdout.
-  ```bash
-  uv run scribae write --note notes.md --brief brief.json --section 1..3 --out draft.md
-  ```
-- **Metadata generation.** Create JSON frontmatter or merge into an existing draft. `--format` controls json/frontmatter/both, `--overwrite` defines how existing fields are preserved, and `--out` selects the output file. `--force-llm-on-missing` keeps the model call even when preserving missing fields.
-  ```bash
-  uv run scribae meta --body draft.md --brief brief.json --format both --out meta.json
-  ```
-- **Translation and post-editing.** Translate markdown while preserving structure. Use `--src`/`--tgt` or `--project` for defaults, `--glossary` to lock terminology, `--postedit/--no-postedit` for LLM cleanup, and `--allow-pivot/--no-allow-pivot` to control English pivoting. `--debug` writes a `*.debug.json` report with segmented blocks and validation/post-edit stages next to the output (or input when writing to stdout).
-  ```bash
-  uv run scribae translate --src en --tgt de --in draft.md --out draft.de.md --debug
-  ```
+## Configuration
+
+### Environment variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `OPENAI_BASE_URL` | `http://localhost:11434/v1` | API endpoint URL |
+| `OPENAI_API_KEY` | `no-key` | API key (not needed for Ollama) |
+
+You can also use `OPENAI_API_BASE` as an alternative to `OPENAI_BASE_URL`.
+
+### Project files
+
+Create a `scribae.yaml` in your project directory to set defaults:
+
+```yaml
+language: en
+model: ministral-3:8b
+translation:
+  source: en
+  target: de
+```
+
+## Usage examples
+
+### Idea discovery
+
+Start with a note and generate a structured list of candidate articles:
+
+```bash
+scribae idea --note notes.md --project demo --out ideas.json
+```
+
+Use `--language` or `--model` to override project defaults, and `--dry-run` to preview the prompt without calling the model.
+
+### SEO brief creation
+
+Convert a note into a validated brief, optionally anchored to a specific idea:
+
+```bash
+# From a note directly
+scribae brief --note notes.md --out brief.json
+
+# From a specific idea
+scribae brief --note notes.md --ideas ideas.json --idea-index 1 --out brief.json
+
+# Generate briefs for all ideas
+scribae brief --note notes.md --ideas ideas.json --idea-all --out-dir briefs/
+```
+
+### Draft writing
+
+Turn a note + brief into a draft:
+
+```bash
+# Full article
+scribae write --note notes.md --brief brief.json --out draft.md
+
+# Only sections 1-3
+scribae write --note notes.md --brief brief.json --section 1..3 --out draft.md
+
+# Require citations
+scribae write --note notes.md --brief brief.json --evidence required --out draft.md
+```
+
+### Metadata generation
+
+Create JSON frontmatter or merge into an existing draft:
+
+```bash
+scribae meta --body draft.md --brief brief.json --format both --out meta.json
+```
+
+Use `--overwrite` to control how existing fields are preserved.
+
+### Translation
+
+Translate Markdown while preserving structure:
+
+```bash
+scribae translate --src en --tgt de --in draft.md --out draft.de.md
+```
+
+Options:
+- `--glossary` — Lock specific terminology
+- `--postedit` / `--no-postedit` — Toggle LLM cleanup pass
+- `--allow-pivot` — Enable English pivoting for unsupported language pairs
+- `--debug` — Write detailed translation report
+
+#### Supported language pairs
+
+**Direct MarianMT pairs:** `en`↔`de/es/fr/it/pt`, `de`→`es/fr/it/pt`, `es`→`de/fr/it/pt`
+
+**Pivoting:** When no direct pair exists and `--allow-pivot` is enabled, Scribae routes through English (`src → en → tgt`).
+
+**NLLB fallback:** For other pairs, the pipeline falls back to NLLB. Standard ISO codes (`en`, `de`, `es`) are mapped automatically, or pass NLLB codes directly (`eng_Latn`, `deu_Latn`).
+
+## Development
+
+### Setup
+
+```bash
+git clone https://github.com/fmueller/scribae.git
+cd scribae
+uv sync --locked --all-extras --dev
+```
+
+For CPU-only PyTorch (~200MB vs ~2GB):
+
+```bash
+uv sync --locked --all-extras --dev --index pytorch-cpu
+```
+
+### Running from source
+
+```bash
+uv run scribae --help
+```
+
+### Testing
+
+```bash
+uv run ruff check   # Lint
+uv run mypy         # Type check
+uv run pytest       # Run tests
+```
 
 ## License
+
 This project is licensed under the Apache License 2.0. See [LICENSE](LICENSE) for details.
