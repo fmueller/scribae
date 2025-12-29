@@ -114,11 +114,14 @@ You can also use `OPENAI_API_BASE` as an alternative to `OPENAI_BASE_URL`.
 Create a `scribae.yaml` in your project directory to set defaults:
 
 ```yaml
+site_name: My Blog
+domain: https://example.com
+audience: developers interested in Python
+tone: conversational
 language: en
-model: ministral-3:8b
-translation:
-  source: en
-  target: de
+keywords:
+  - python
+  - programming
 ```
 
 ## Usage examples
