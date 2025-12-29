@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-import importlib.util
 from collections.abc import Iterable
+from types import ModuleType
 from typing import TYPE_CHECKING, Any
 
 from .model_registry import ModelRegistry, RouteStep
@@ -60,15 +60,15 @@ class MTTranslator:
                 self._pipelines[model_id] = pipeline("translation", model=model_id, device=self.device)
         return self._pipelines[model_id]
 
-    def _require_torch(self) -> Any:
-        if importlib.util.find_spec("torch") is None:
+    def _require_torch(self) -> ModuleType:
+        try:
+            import torch
+        except ImportError as exc:
             raise RuntimeError(
                 "Translation requires PyTorch. Install it with "
                 "`uv sync --extra translation` or "
                 "`uv sync --extra translation --index pytorch-cpu` (CPU-only)."
-            )
-        import torch
-
+            ) from exc
         return torch
 
     def prefetch(self, steps: Iterable[RouteStep]) -> None:
