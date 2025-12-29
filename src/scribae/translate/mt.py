@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import importlib.util
 from collections.abc import Iterable
 from typing import TYPE_CHECKING, Any
 
@@ -51,16 +52,24 @@ class MTTranslator:
         from transformers import pipeline
 
         if model_id not in self._pipelines:
+            torch = self._require_torch()
             if self.device is None or self.device == "auto":
-                import torch
-
                 device = 0 if torch.cuda.is_available() else -1
                 self._pipelines[model_id] = pipeline("translation", model=model_id, device=device)
             else:
-                self._pipelines[model_id] = pipeline(
-                    "translation", model=model_id, device=self.device
-                )
+                self._pipelines[model_id] = pipeline("translation", model=model_id, device=self.device)
         return self._pipelines[model_id]
+
+    def _require_torch(self) -> Any:
+        if importlib.util.find_spec("torch") is None:
+            raise RuntimeError(
+                "Translation requires PyTorch. Install the translation extras with "
+                "`uv sync --extra translation` (default GPU build) or "
+                "`uv sync --extra translation-cpu` (CPU-only build)."
+            )
+        import torch
+
+        return torch
 
     def prefetch(self, steps: Iterable[RouteStep]) -> None:
         """Warm translation pipelines for the provided route steps."""
