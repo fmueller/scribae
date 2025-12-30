@@ -31,16 +31,37 @@ uv sync --locked --all-extras --dev --index pytorch-cpu
 
 ```
 src/scribae/
-├── main.py           # Typer CLI entry point
-├── llm.py            # OpenAI-compatible API config (OpenAISettings, make_model)
-├── project.py        # ProjectConfig TypedDict & YAML loading
-├── io_utils.py       # Note loading & frontmatter parsing (NoteDetails)
-├── language.py       # Language detection & validation
-├── snippets.py       # Keyword-based text extraction
-├── *_cli.py          # CLI command wrappers (typer)
-├── idea.py/brief.py/write.py/meta.py  # Business logic per command
-├── prompts/          # Deterministic prompt templates & builders
-└── translate/        # MT + LLM post-edit pipeline (MarianMT, NLLB)
+├── main.py              # Typer CLI entry point
+├── llm.py               # OpenAI-compatible API config (OpenAISettings, make_model)
+├── project.py           # ProjectConfig TypedDict & YAML loading
+├── io_utils.py          # Note loading & frontmatter parsing (NoteDetails)
+├── language.py          # Language detection & validation
+├── snippets.py          # Keyword-based text extraction
+│
+├── idea_cli.py          # CLI wrapper for idea command
+├── brief_cli.py         # CLI wrapper for brief command
+├── write_cli.py         # CLI wrapper for write command
+├── meta_cli.py          # CLI wrapper for meta command
+├── translate_cli.py     # CLI wrapper for translate command
+├── version_cli.py       # CLI wrapper for version command
+│
+├── idea.py              # Idea generation business logic
+├── brief.py             # Briefing business logic
+├── write.py             # Article writing business logic
+├── meta.py              # Meta/SEO generation business logic
+│
+├── prompts/             # Deterministic prompt templates & builders
+│   ├── idea.py          # Idea prompt construction
+│   ├── brief.py         # Brief prompt construction
+│   ├── write.py         # Write prompt construction
+│   └── meta.py          # Meta prompt construction
+│
+└── translate/           # MT + LLM post-edit pipeline
+    ├── mt.py            # Machine translation (MarianMT, NLLB)
+    ├── postedit.py      # LLM-based post-editing
+    ├── pipeline.py      # Translation pipeline orchestration
+    ├── model_registry.py    # Model selection & configuration
+    └── markdown_segmenter.py # Markdown-aware text segmentation
 ```
 
 **Layered pattern:** CLI layer (`*_cli.py`) → Business logic (`*.py`) → Infrastructure (`llm.py`, `prompts/`, `translate/`)

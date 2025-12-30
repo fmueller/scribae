@@ -1,24 +1,39 @@
 # Repository Guidelines
 
-## Project Structure & Module Organization
-Source lives under `src/scribae`, with `main.py` exposing the CLI entry point and `__init__.py` handling package exports. Tests sit in `tests/unit`, mirroring module names (e.g., `tests/unit/main_test.py` targets `scribae/main.py`). Keep any future integration fixtures in `tests/integration` and shared helpers in `tests/conftest.py`. Non-Python assets (sample prompts, fixtures) belong in `assets/` so that `pyproject.toml` stays code-focused.
+This file provides guidance for AI agents working with this codebase. For detailed architecture and patterns, see [CLAUDE.md](./CLAUDE.md).
 
-## Environment & Tooling
-We use [uv](https://github.com/astral-sh/uv) for dependency management. Install everything locally with `uv sync` and run commands via `uv run …` so the locked interpreter (Python 3.10+) and dependency set stay consistent.
+## Project Overview
 
-## Build, Test, and Development Commands
-- `uv run python -m scribae.main` — invoke the CLI entry point and confirm stdout behavior.
-- `uv run pytest` — execute the full test matrix with `pythonpath = ["src"]`.
-- `uv run ruff check --fix` to lint and auto-format; CI expects a clean run.
-- `uv run mypy` — enforce strict typing (see `[tool.mypy]` configuration).
+Scribae is a CLI tool that transforms local Markdown notes into structured SEO content packages using LLMs via OpenAI-compatible APIs.
 
-Important: always run the tests, mypy, and ruff at the end of your task and fix any issue.
+**Core workflow:** `idea` → `brief` → `write` → `meta` → `translate`
 
-## Coding Style & Naming Conventions
-Stick to Ruff’s defaults configured in `pyproject.toml`: 4-space indentation, double quotes, 120-character lines, and import sorting via `ruff check --select I`. Favor `TypedDict`, `Protocol`, or Pydantic models for structured data. Name modules and files with `snake_case`, classes with `PascalCase`, and functions/variables with `snake_case`. New CLIs should expose a `main()` for `python -m package.module`.
+## Quick Reference
 
-## Testing Guidelines
-Pytest is the standard; name tests `test_<unit>_<behavior>` to keep discovery predictable. Capture stdout/stderr with pytest fixtures (see `capsys` usage in `tests/unit/main_test.py`) instead of ad-hoc prints. Every public function or branch-worthy behavior should gain at least one positive and one edge-case test. When adding async code, use `pytest.mark.asyncio` and keep fixtures in `tests/conftest.py`.
+```bash
+uv sync --locked --all-extras --dev   # Install dependencies
+uv run scribae --help                 # Run CLI
+uv run ruff check                     # Lint (auto-fix: --fix)
+uv run mypy                           # Type check
+uv run pytest                         # Run tests
+```
 
-## Commit & Pull Request Guidelines
-Commits follow Conventional Commits (`fix:`, `chore:`, `feat:`) as shown in `git log` (`fix: add type hints…`). Keep subjects under 72 characters, and describe motivation plus outcome in the body when needed. Pull requests should link the relevant issue, summarize functional changes, list test evidence (`uv run pytest`, `uv run mypy`), and attach screenshots or sample outputs if the change affects user-visible text. Await at least one review before merging to main.
+**Important:** Always run tests, mypy, and ruff at the end of your task and fix any issues.
+
+## Project Structure
+
+- Source: `src/scribae/` with `main.py` as CLI entry point
+- Tests: `tests/unit/` mirroring module names (e.g., `tests/unit/main_test.py` → `scribae/main.py`)
+- Shared test helpers: `tests/conftest.py`
+
+## Coding Standards
+
+- **Style:** Ruff defaults - 4-space indent, double quotes, 120-char lines, import sorting
+- **Typing:** Strict mypy, all functions fully typed (Python 3.10+)
+- **Data:** Prefer `TypedDict`, `Protocol`, or Pydantic models
+- **Naming:** `snake_case` for modules/functions/variables, `PascalCase` for classes
+- **Tests:** Name `test_<unit>_<behavior>`, use pytest fixtures
+
+## Commits
+
+Follow Conventional Commits: `fix:`, `feat:`, `chore:`, etc. Keep subjects under 72 characters.
