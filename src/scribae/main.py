@@ -3,6 +3,7 @@ from __future__ import annotations
 import typer
 
 from .brief_cli import brief_command
+from .feedback_cli import feedback_command
 from .idea_cli import idea_command
 from .meta_cli import meta_command
 from .translate_cli import translate_command
@@ -30,6 +31,10 @@ app.command(
     help="Generate a validated SEO brief (keywords, outline, FAQ, metadata) from a note.",
 )(brief_command)
 app.command("write", help="Draft an article from a note + SeoBrief JSON.")(write_command)
+app.command(
+    "feedback",
+    help="Review a draft against a brief to surface improvements without rewriting.",
+)(feedback_command)
 app.command("meta", help="Create publication metadata/frontmatter for a finished draft.")(meta_command)
 app.command("translate", help="Translate Markdown while preserving formatting (MT + post-edit).")(translate_command)
 app.command("version", help="Print the Scribae version.")(version_command)
