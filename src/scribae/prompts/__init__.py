@@ -5,4 +5,5 @@ __all__ = [
     "write",
     "idea",
     "meta",
+    "feedback",
 ]
