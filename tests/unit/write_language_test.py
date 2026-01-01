@@ -28,7 +28,14 @@ def test_section_title_language_correction(monkeypatch: pytest.MonkeyPatch, note
     title_calls = iter(["Introduction to Observability", "Einführung in Observability"])
     invoked_prompts: list[str] = []
 
-    def fake_invoke(prompt: str, *, model_name: str, temperature: float) -> str:
+    def fake_invoke(
+        prompt: str,
+        *,
+        model_name: str,
+        temperature: float,
+        top_p: float | None = None,
+        seed: int | None = None,
+    ) -> str:
         invoked_prompts.append(prompt)
         if "Rewrite the following section title" in prompt:
             return next(title_calls)

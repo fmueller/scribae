@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `--seed` and `--top-p` CLI options for all LLM commands (`idea`, `brief`, `write`, `meta`) to control output reproducibility
+- `--postedit-seed` and `--postedit-top-p` CLI options for the `translate` command's LLM post-edit pass
+
 ## 0.1.0 - 2025-12-29
 
 ### Added

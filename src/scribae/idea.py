@@ -146,6 +146,8 @@ def generate_ideas(
     *,
     model_name: str,
     temperature: float,
+    top_p: float | None = None,
+    seed: int | None = None,
     reporter: Reporter = None,
     settings: OpenAISettings | None = None,
     agent: Agent[None, IdeaList] | None = None,
@@ -156,7 +158,9 @@ def generate_ideas(
 
     resolved_settings = settings or OpenAISettings.from_env()
     llm_agent: Agent[None, IdeaList] = (
-        _create_agent(model_name, resolved_settings, temperature=temperature) if agent is None else agent
+        _create_agent(model_name, resolved_settings, temperature=temperature, top_p=top_p, seed=seed)
+        if agent is None
+        else agent
     )
 
     _report(reporter, f"Calling model '{model_name}' via {resolved_settings.base_url}")
@@ -223,11 +227,22 @@ def save_prompt_artifacts(
     return prompt_path, note_path
 
 
-def _create_agent(model_name: str, settings: OpenAISettings, *, temperature: float) -> Agent[None, IdeaList]:
+def _create_agent(
+    model_name: str,
+    settings: OpenAISettings,
+    *,
+    temperature: float,
+    top_p: float | None = None,
+    seed: int | None = None,
+) -> Agent[None, IdeaList]:
     """Instantiate the Pydantic AI agent for generating ideas."""
 
     settings.configure_environment()
     model_settings = ModelSettings(temperature=temperature)
+    if top_p is not None:
+        model_settings["top_p"] = top_p
+    if seed is not None:
+        model_settings["seed"] = seed
     model = make_model(model_name, model_settings=model_settings, settings=settings)
     return Agent[None, IdeaList](
         model=model,

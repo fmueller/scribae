@@ -227,6 +227,8 @@ def generate_brief(
     *,
     model_name: str,
     temperature: float,
+    top_p: float | None = None,
+    seed: int | None = None,
     reporter: Reporter = None,
     settings: OpenAISettings | None = None,
     agent: Agent[None, SeoBrief] | None = None,
@@ -236,7 +238,9 @@ def generate_brief(
     """Run the LLM call and return a validated SeoBrief."""
     resolved_settings = settings or OpenAISettings.from_env()
     llm_agent: Agent[None, SeoBrief] = (
-        _create_agent(model_name, resolved_settings, temperature=temperature) if agent is None else agent
+        _create_agent(model_name, resolved_settings, temperature=temperature, top_p=top_p, seed=seed)
+        if agent is None
+        else agent
     )
 
     _report(
@@ -322,10 +326,21 @@ def save_prompt_artifacts(
     return prompt_path, note_path
 
 
-def _create_agent(model_name: str, settings: OpenAISettings, *, temperature: float) -> Agent[None, SeoBrief]:
+def _create_agent(
+    model_name: str,
+    settings: OpenAISettings,
+    *,
+    temperature: float,
+    top_p: float | None = None,
+    seed: int | None = None,
+) -> Agent[None, SeoBrief]:
     """Instantiate the Pydantic AI agent for generating briefs."""
     settings.configure_environment()
     model_settings = ModelSettings(temperature=temperature)
+    if top_p is not None:
+        model_settings["top_p"] = top_p
+    if seed is not None:
+        model_settings["seed"] = seed
     model = make_model(model_name, model_settings=model_settings, settings=settings)
     return Agent[None, SeoBrief](
         model=model,
