@@ -228,6 +228,8 @@ def generate_metadata(
     *,
     model_name: str,
     temperature: float,
+    top_p: float | None = None,
+    seed: int | None = None,
     reporter: Reporter = None,
     agent: Agent[None, ArticleMeta] | None = None,
     prompts: PromptBundle | None = None,
@@ -247,7 +249,7 @@ def generate_metadata(
 
     resolved_settings = OpenAISettings.from_env()
     llm_agent: Agent[None, ArticleMeta] = (
-        agent if agent is not None else _create_agent(model_name, temperature)
+        agent if agent is not None else _create_agent(model_name, temperature, top_p=top_p, seed=seed)
     )
 
     _report(
@@ -516,8 +518,18 @@ def _merge_frontmatter(meta: ArticleMeta, original: dict[str, Any], *, overwrite
     return merged
 
 
-def _create_agent(model_name: str, temperature: float) -> Agent[None, ArticleMeta]:
+def _create_agent(
+    model_name: str,
+    temperature: float,
+    *,
+    top_p: float | None = None,
+    seed: int | None = None,
+) -> Agent[None, ArticleMeta]:
     model_settings = ModelSettings(temperature=temperature)
+    if top_p is not None:
+        model_settings["top_p"] = top_p
+    if seed is not None:
+        model_settings["seed"] = seed
     model = make_model(model_name, model_settings=model_settings)
     return Agent[None, ArticleMeta](
         model=model,

@@ -392,3 +392,89 @@ def test_meta_reports_fabricated_fields_reason(
     assert result.exit_code == 0, result.stderr
     assert stub.prompts
     assert "reason: overwrite=missing with force_llm_on_missing" in result.stderr
+
+
+def test_meta_passes_seed_and_top_p(
+    monkeypatch: pytest.MonkeyPatch, body_without_frontmatter: Path, brief_path: Path, tmp_path: Path
+) -> None:
+    captured_kwargs: dict[str, object] = {}
+
+    def capture_generate(*args: object, **kwargs: object) -> ArticleMeta:
+        captured_kwargs.update(kwargs)
+        return ArticleMeta(
+            title="LLM Title",
+            slug="llm-slug",
+            excerpt="Summary",
+            tags=["tag"],
+            reading_time=4,
+            language="en",
+        )
+
+    monkeypatch.setattr("scribae.meta_cli.generate_metadata", capture_generate)
+
+    output_path = tmp_path / "meta.json"
+    result = runner.invoke(
+        app,
+        [
+            "meta",
+            "--body",
+            str(body_without_frontmatter),
+            "--brief",
+            str(brief_path),
+            "--format",
+            "json",
+            "--overwrite",
+            "all",
+            "--out",
+            str(output_path),
+            "--seed",
+            "42",
+            "--top-p",
+            "0.9",
+        ],
+    )
+
+    assert result.exit_code == 0, result.stderr
+    assert captured_kwargs.get("seed") == 42
+    assert captured_kwargs.get("top_p") == 0.9
+
+
+def test_meta_seed_and_top_p_optional(
+    monkeypatch: pytest.MonkeyPatch, body_without_frontmatter: Path, brief_path: Path, tmp_path: Path
+) -> None:
+    captured_kwargs: dict[str, object] = {}
+
+    def capture_generate(*args: object, **kwargs: object) -> ArticleMeta:
+        captured_kwargs.update(kwargs)
+        return ArticleMeta(
+            title="LLM Title",
+            slug="llm-slug",
+            excerpt="Summary",
+            tags=["tag"],
+            reading_time=4,
+            language="en",
+        )
+
+    monkeypatch.setattr("scribae.meta_cli.generate_metadata", capture_generate)
+
+    output_path = tmp_path / "meta.json"
+    result = runner.invoke(
+        app,
+        [
+            "meta",
+            "--body",
+            str(body_without_frontmatter),
+            "--brief",
+            str(brief_path),
+            "--format",
+            "json",
+            "--overwrite",
+            "all",
+            "--out",
+            str(output_path),
+        ],
+    )
+
+    assert result.exit_code == 0, result.stderr
+    assert captured_kwargs.get("seed") is None
+    assert captured_kwargs.get("top_p") is None

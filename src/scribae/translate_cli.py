@@ -197,6 +197,20 @@ def translate(
         "--pe-temp",
         help="Temperature for post-edit LLM pass.",
     ),
+    postedit_top_p: float | None = typer.Option(  # noqa: B008
+        None,
+        "--postedit-top-p",
+        "--pe-top-p",
+        min=0.0,
+        max=1.0,
+        help="Nucleus sampling threshold for post-edit (1.0 = full distribution).",
+    ),
+    postedit_seed: int | None = typer.Option(  # noqa: B008
+        None,
+        "--postedit-seed",
+        "--pe-seed",
+        help="Random seed for reproducible post-edit outputs.",
+    ),
     device: str = typer.Option(  # noqa: B008
         "auto",
         "--device",
@@ -276,6 +290,8 @@ def translate(
     posteditor = LLMPostEditor(
         model_name=postedit_model,
         temperature=postedit_temperature,
+        top_p=postedit_top_p,
+        seed=postedit_seed,
         create_agent=postedit,
         max_chars=postedit_max_chars,
     )

@@ -117,3 +117,40 @@ def test_idea_save_prompt_creates_files(
     assert note_snapshot.exists()
     assert "SYSTEM PROMPT" in prompt_file.read_text(encoding="utf-8")
     assert note_body in note_snapshot.read_text(encoding="utf-8")
+
+
+def test_idea_passes_seed_and_top_p(monkeypatch: pytest.MonkeyPatch, note_file: Path, fake: Faker) -> None:
+    ideas = _fake_ideas(fake)
+    captured_kwargs: dict[str, object] = {}
+
+    def capture_generate(*args: object, **kwargs: object) -> IdeaList:
+        captured_kwargs.update(kwargs)
+        return ideas
+
+    monkeypatch.setattr("scribae.idea_cli.generate_ideas", capture_generate)
+
+    result = runner.invoke(
+        app,
+        ["idea", "--note", str(note_file), "--json", "--seed", "42", "--top-p", "0.9"],
+    )
+
+    assert result.exit_code == 0
+    assert captured_kwargs.get("seed") == 42
+    assert captured_kwargs.get("top_p") == 0.9
+
+
+def test_idea_seed_and_top_p_optional(monkeypatch: pytest.MonkeyPatch, note_file: Path, fake: Faker) -> None:
+    ideas = _fake_ideas(fake)
+    captured_kwargs: dict[str, object] = {}
+
+    def capture_generate(*args: object, **kwargs: object) -> IdeaList:
+        captured_kwargs.update(kwargs)
+        return ideas
+
+    monkeypatch.setattr("scribae.idea_cli.generate_ideas", capture_generate)
+
+    result = runner.invoke(app, ["idea", "--note", str(note_file), "--json"])
+
+    assert result.exit_code == 0
+    assert captured_kwargs.get("seed") is None
+    assert captured_kwargs.get("top_p") is None
