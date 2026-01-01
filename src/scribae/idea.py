@@ -88,8 +88,8 @@ Reporter = Callable[[str], None] | None
 
 
 def prepare_context(
-    note_path: Path,
     *,
+    note_path: Path,
     project: ProjectConfig,
     max_chars: int,
     language: str | None = None,
