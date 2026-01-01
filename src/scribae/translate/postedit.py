@@ -45,6 +45,8 @@ class LLMPostEditor:
         *,
         model_name: str = DEFAULT_MODEL_NAME,
         temperature: float = 0.2,
+        top_p: float | None = None,
+        seed: int | None = None,
         create_agent: bool = True,
         max_chars: int | None = 4_000,
         timeout_seconds: float | None = 60.0,
@@ -57,7 +59,7 @@ class LLMPostEditor:
         if agent is not None:
             self.agent = agent
         elif create_agent:
-            self.agent = self._create_agent(model_name, temperature=temperature)
+            self.agent = self._create_agent(model_name, temperature=temperature, top_p=top_p, seed=seed)
 
     def post_edit(
         self,
@@ -437,10 +439,21 @@ class LLMPostEditor:
             elif target not in text:
                 raise PostEditValidationError(f"Glossary target not enforced: {target}")
 
-    def _create_agent(self, model_name: str, *, temperature: float) -> Agent[None, str] | None:
+    def _create_agent(
+        self,
+        model_name: str,
+        *,
+        temperature: float,
+        top_p: float | None = None,
+        seed: int | None = None,
+    ) -> Agent[None, str] | None:
         settings = OpenAISettings.from_env()
         settings.configure_environment()
         model_settings = ModelSettings(temperature=temperature)
+        if top_p is not None:
+            model_settings["top_p"] = top_p
+        if seed is not None:
+            model_settings["seed"] = seed
         model = make_model(model_name, model_settings=model_settings, settings=settings)
         return Agent[None, str](
             model=model,

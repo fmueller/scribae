@@ -93,14 +93,14 @@ def ensure_language_output(
 
     first_result = invoke(prompt)
     try:
-        _validate_language(extract_text(first_result), expected_language, language_detector)
+        _validate_language(extract_text(first_result), expected_language, language_detector=language_detector)
         return first_result
     except LanguageMismatchError as first_error:
         _report(reporter, str(first_error) + " Retrying with language correction.")
 
     corrective_prompt = _append_language_correction(prompt, expected_language)
     second_result = invoke(corrective_prompt)
-    _validate_language(extract_text(second_result), expected_language, language_detector)
+    _validate_language(extract_text(second_result), expected_language, language_detector=language_detector)
     return second_result
 
 
@@ -115,6 +115,7 @@ def _append_language_correction(prompt: str, expected_language: str) -> str:
 def _validate_language(
     text: str,
     expected_language: str,
+    *,
     language_detector: Callable[[str], str] | None = None,
 ) -> None:
     detected = _detect_language(text, language_detector)

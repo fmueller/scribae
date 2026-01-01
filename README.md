@@ -124,6 +124,28 @@ keywords:
   - programming
 ```
 
+### LLM settings
+
+All commands that use LLMs support `--temperature`, `--top-p`, and `--seed` for controlling output variability:
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--temperature` | 0.2–0.4 | Sampling temperature. Lower values produce more deterministic output. |
+| `--top-p` | (none) | Nucleus sampling threshold. Set to `1.0` for full distribution. |
+| `--seed` | (none) | Random seed for reproducible outputs. |
+
+For fully deterministic output, set `--temperature 0`. For reproducible creative output, combine `--seed` with `--top-p 1.0`.
+
+```bash
+# Deterministic mode
+scribae brief --note notes.md --temperature 0 --out brief.json
+
+# Reproducible creative mode
+scribae write --note notes.md --brief brief.json --seed 42 --top-p 1.0 --out draft.md
+```
+
+The `translate` command uses `--postedit-temperature`, `--postedit-top-p`, and `--postedit-seed` for the LLM post-edit pass.
+
 ## Usage examples
 
 ### Idea discovery

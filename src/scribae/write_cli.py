@@ -72,6 +72,18 @@ def write_command(
         max=2.0,
         help="Temperature for the LLM request.",
     ),
+    top_p: float | None = typer.Option(  # noqa: B008
+        None,
+        "--top-p",
+        min=0.0,
+        max=1.0,
+        help="Nucleus sampling threshold (1.0 = full distribution). For reproducibility, set to 1.0.",
+    ),
+    seed: int | None = typer.Option(  # noqa: B008
+        None,
+        "--seed",
+        help="Random seed for reproducible outputs. For full determinism, combine with --temperature 0.",
+    ),
     dry_run: bool = typer.Option(  # noqa: B008
         False,
         "--dry-run",
@@ -178,6 +190,8 @@ def write_command(
             context,
             model_name=model,
             temperature=temperature,
+            top_p=top_p,
+            seed=seed,
             evidence_required=evidence_required,
             section_range=section_range,
             include_faq=include_faq or write_faq,

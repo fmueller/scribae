@@ -48,6 +48,7 @@ def stub_translation_components(monkeypatch: pytest.MonkeyPatch) -> dict[str, An
         def __init__(self, *args: object, **kwargs: object) -> None:
             self.args = args
             self.kwargs = kwargs
+            calls["postedit_kwargs"] = dict(kwargs)
 
         def prefetch_language_model(self) -> None:
             calls["postedit_prefetch"] = True
@@ -527,3 +528,53 @@ def test_translate_configures_library_logging_respects_verbose(monkeypatch: pyte
     assert os.environ["TOKENIZERS_PARALLELISM"] == "false"
     assert os.environ["HF_HUB_DISABLE_PROGRESS_BARS"] == "1"
     assert os.environ["TRANSFORMERS_VERBOSITY"] == "error"
+
+
+def test_translate_passes_postedit_seed_and_top_p(
+    stub_translation_components: dict[str, Any],
+    input_markdown: Path,
+) -> None:
+    result = runner.invoke(
+        app,
+        [
+            "translate",
+            "--src",
+            "en",
+            "--tgt",
+            "de",
+            "--in",
+            str(input_markdown),
+            "--postedit-seed",
+            "42",
+            "--postedit-top-p",
+            "0.9",
+        ],
+    )
+
+    assert result.exit_code == 0
+    postedit_kwargs = stub_translation_components["postedit_kwargs"]
+    assert postedit_kwargs.get("seed") == 42
+    assert postedit_kwargs.get("top_p") == 0.9
+
+
+def test_translate_postedit_seed_and_top_p_optional(
+    stub_translation_components: dict[str, Any],
+    input_markdown: Path,
+) -> None:
+    result = runner.invoke(
+        app,
+        [
+            "translate",
+            "--src",
+            "en",
+            "--tgt",
+            "de",
+            "--in",
+            str(input_markdown),
+        ],
+    )
+
+    assert result.exit_code == 0
+    postedit_kwargs = stub_translation_components["postedit_kwargs"]
+    assert postedit_kwargs.get("seed") is None
+    assert postedit_kwargs.get("top_p") is None

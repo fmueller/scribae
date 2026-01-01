@@ -29,9 +29,19 @@ def brief_path(fixtures_dir: Path) -> Path:
 class RecordingLLM:
     def __init__(self) -> None:
         self.prompts: list[str] = []
+        self.kwargs_log: list[dict[str, object]] = []
 
-    def __call__(self, prompt: str, *, model_name: str, temperature: float) -> str:
+    def __call__(
+        self,
+        prompt: str,
+        *,
+        model_name: str,
+        temperature: float,
+        top_p: float | None = None,
+        seed: int | None = None,
+    ) -> str:
         self.prompts.append(prompt)
+        self.kwargs_log.append({"model_name": model_name, "temperature": temperature, "top_p": top_p, "seed": seed})
         section_title = ""
         for line in prompt.splitlines():
             if line.startswith("Current Section:"):
@@ -251,3 +261,47 @@ def test_write_faq_generates_section(recording_llm: RecordingLLM, note_path: Pat
     assert "## FAQ" in body
     assert "FAQ body." in body
     assert len(recording_llm.prompts) == 7
+
+
+def test_write_passes_seed_and_top_p(recording_llm: RecordingLLM, note_path: Path, brief_path: Path) -> None:
+    result = runner.invoke(
+        app,
+        [
+            "write",
+            "--note",
+            str(note_path),
+            "--brief",
+            str(brief_path),
+            "--section",
+            "1..1",
+            "--seed",
+            "42",
+            "--top-p",
+            "0.9",
+        ],
+    )
+
+    assert result.exit_code == 0, result.stderr
+    assert len(recording_llm.kwargs_log) == 1
+    assert recording_llm.kwargs_log[0]["seed"] == 42
+    assert recording_llm.kwargs_log[0]["top_p"] == 0.9
+
+
+def test_write_seed_and_top_p_optional(recording_llm: RecordingLLM, note_path: Path, brief_path: Path) -> None:
+    result = runner.invoke(
+        app,
+        [
+            "write",
+            "--note",
+            str(note_path),
+            "--brief",
+            str(brief_path),
+            "--section",
+            "1..1",
+        ],
+    )
+
+    assert result.exit_code == 0, result.stderr
+    assert len(recording_llm.kwargs_log) == 1
+    assert recording_llm.kwargs_log[0]["seed"] is None
+    assert recording_llm.kwargs_log[0]["top_p"] is None

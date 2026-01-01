@@ -186,3 +186,49 @@ def test_help_flag_outputs_help() -> None:
 
     assert result.exit_code == 0
     assert "Scribae — turn local Markdown notes into ideas, SEO briefs" in result.stdout
+
+
+def test_brief_passes_seed_and_top_p(monkeypatch: pytest.MonkeyPatch, note_file: Path, fake: Faker) -> None:
+    brief_obj = _fake_brief(fake)
+    captured_kwargs: dict[str, object] = {}
+
+    def capture_generate(*args: object, **kwargs: object) -> SeoBrief:
+        captured_kwargs.update(kwargs)
+        return brief_obj
+
+    monkeypatch.setattr("scribae.brief_cli.brief.generate_brief", capture_generate)
+
+    result = runner.invoke(
+        app,
+        [
+            "brief",
+            "--note",
+            str(note_file),
+            "--json",
+            "--seed",
+            "42",
+            "--top-p",
+            "0.9",
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert captured_kwargs.get("seed") == 42
+    assert captured_kwargs.get("top_p") == 0.9
+
+
+def test_brief_seed_and_top_p_optional(monkeypatch: pytest.MonkeyPatch, note_file: Path, fake: Faker) -> None:
+    brief_obj = _fake_brief(fake)
+    captured_kwargs: dict[str, object] = {}
+
+    def capture_generate(*args: object, **kwargs: object) -> SeoBrief:
+        captured_kwargs.update(kwargs)
+        return brief_obj
+
+    monkeypatch.setattr("scribae.brief_cli.brief.generate_brief", capture_generate)
+
+    result = runner.invoke(app, ["brief", "--note", str(note_file), "--json"])
+
+    assert result.exit_code == 0
+    assert captured_kwargs.get("seed") is None
+    assert captured_kwargs.get("top_p") is None

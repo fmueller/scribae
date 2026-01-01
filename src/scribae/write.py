@@ -218,6 +218,8 @@ def generate_article(
     *,
     model_name: str,
     temperature: float,
+    top_p: float | None = None,
+    seed: int | None = None,
     evidence_required: bool,
     section_range: tuple[int, int] | None = None,
     include_faq: bool = False,
@@ -242,6 +244,8 @@ def generate_article(
             expected_language=context.language,
             model_name=model_name,
             temperature=temperature,
+            top_p=top_p,
+            seed=seed,
             language_detector=language_detector,
             reporter=reporter,
         )
@@ -257,7 +261,7 @@ def generate_article(
                     prompt=prompt,
                     expected_language=context.language,
                     invoke=lambda prompt: _invoke_model(
-                        prompt, model_name=model_name, temperature=temperature
+                        prompt, model_name=model_name, temperature=temperature, top_p=top_p, seed=seed
                     ),
                     extract_text=lambda text: text,
                     reporter=reporter,
@@ -280,6 +284,8 @@ def generate_article(
             context,
             model_name=model_name,
             temperature=temperature,
+            top_p=top_p,
+            seed=seed,
             reporter=reporter,
             language_detector=language_detector,
             write_faq=write_faq,
@@ -320,9 +326,20 @@ def _load_brief(path: Path) -> SeoBrief:
     return brief
 
 
-def _invoke_model(prompt: str, *, model_name: str, temperature: float) -> str:
+def _invoke_model(
+    prompt: str,
+    *,
+    model_name: str,
+    temperature: float,
+    top_p: float | None = None,
+    seed: int | None = None,
+) -> str:
     """Call the writer model and return Markdown text."""
     model_settings = ModelSettings(temperature=temperature)
+    if top_p is not None:
+        model_settings["top_p"] = top_p
+    if seed is not None:
+        model_settings["seed"] = seed
     model = make_model(model_name, model_settings=model_settings)
     agent = Agent(model=model, instructions=SYSTEM_PROMPT)
 
@@ -364,6 +381,8 @@ def _build_faq_body(
     *,
     model_name: str,
     temperature: float,
+    top_p: float | None = None,
+    seed: int | None = None,
     reporter: Reporter,
     language_detector: Callable[[str], str] | None,
     write_faq: bool,
@@ -391,7 +410,9 @@ def _build_faq_body(
         body = ensure_language_output(
             prompt=prompt,
             expected_language=context.language,
-            invoke=lambda prompt: _invoke_model(prompt, model_name=model_name, temperature=temperature),
+            invoke=lambda prompt: _invoke_model(
+                prompt, model_name=model_name, temperature=temperature, top_p=top_p, seed=seed
+            ),
             extract_text=lambda text: text,
             reporter=reporter,
             language_detector=language_detector,
@@ -419,6 +440,8 @@ def _ensure_section_title_language(
     expected_language: str,
     model_name: str,
     temperature: float,
+    top_p: float | None = None,
+    seed: int | None = None,
     language_detector: Callable[[str], str] | None,
     reporter: Reporter,
 ) -> str:
@@ -450,7 +473,9 @@ def _ensure_section_title_language(
     corrected = ensure_language_output(
         prompt=prompt,
         expected_language=expected_language,
-        invoke=lambda prompt: _invoke_model(prompt, model_name=model_name, temperature=temperature),
+        invoke=lambda prompt: _invoke_model(
+            prompt, model_name=model_name, temperature=temperature, top_p=top_p, seed=seed
+        ),
         extract_text=lambda text: text,
         reporter=reporter,
         language_detector=language_detector,
