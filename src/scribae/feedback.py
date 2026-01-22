@@ -14,13 +14,11 @@ from pydantic_ai import Agent, NativeOutput, UnexpectedModelBehavior
 from pydantic_ai.settings import ModelSettings
 
 from .brief import SeoBrief
-from .io_utils import NoteDetails, load_note
+from .io_utils import NoteDetails, Reporter, load_note, truncate
 from .language import LanguageMismatchError, LanguageResolutionError, ensure_language_output, resolve_output_language
-from .llm import LLM_OUTPUT_RETRIES, LLM_TIMEOUT_SECONDS, OpenAISettings, make_model
+from .llm import LLM_OUTPUT_RETRIES, LLM_TIMEOUT_SECONDS, OpenAISettings, apply_optional_settings, make_model
 from .project import ProjectConfig
 from .prompts.feedback import FEEDBACK_SYSTEM_PROMPT, FeedbackPromptBundle, build_feedback_prompt_bundle
-
-Reporter = Callable[[str], None] | None
 
 
 class FeedbackError(Exception):
@@ -320,6 +318,8 @@ def generate_feedback_report(
     *,
     model_name: str,
     temperature: float,
+    top_p: float | None = None,
+    seed: int | None = None,
     reporter: Reporter = None,
     agent: Agent[None, FeedbackReport] | None = None,
     prompts: PromptBundle | None = None,
@@ -331,7 +331,9 @@ def generate_feedback_report(
 
     resolved_settings = OpenAISettings.from_env()
     llm_agent: Agent[None, FeedbackReport] = (
-        agent if agent is not None else _create_agent(model_name, temperature)
+        agent
+        if agent is not None
+        else _create_agent(model_name, temperature=temperature, top_p=top_p, seed=seed)
     )
 
     _report(reporter, f"Calling model '{model_name}' via {resolved_settings.base_url}")
@@ -483,8 +485,15 @@ class _FeedbackPromptContext:
     selected_sections: list[dict[str, str]]
 
 
-def _create_agent(model_name: str, temperature: float) -> Agent[None, FeedbackReport]:
+def _create_agent(
+    model_name: str,
+    *,
+    temperature: float,
+    top_p: float | None = None,
+    seed: int | None = None,
+) -> Agent[None, FeedbackReport]:
     model_settings = ModelSettings(temperature=temperature)
+    apply_optional_settings(model_settings, top_p=top_p, seed=seed)
     model = make_model(model_name, model_settings=model_settings)
     return Agent[None, FeedbackReport](
         model=model,
@@ -530,7 +539,7 @@ def _load_body(body_path: Path, *, max_chars: int) -> BodyDocument:
 
     metadata = dict(post.metadata or {})
     content = post.content.strip()
-    excerpt, truncated = _truncate(content, max_chars)
+    excerpt, truncated = truncate(content, max_chars)
     return BodyDocument(
         path=body_path,
         content=excerpt,
@@ -646,12 +655,6 @@ def _format_location(location: FeedbackLocation | None) -> str:
     if paragraph is not None:
         details.append(f"paragraph: {paragraph}")
     return f" ({'; '.join(details)})" if details else ""
-
-
-def _truncate(value: str, max_chars: int) -> tuple[str, bool]:
-    if len(value) <= max_chars:
-        return value, False
-    return value[: max_chars - 1].rstrip() + " …", True
 
 
 def _report(reporter: Reporter, message: str) -> None:

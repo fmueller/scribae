@@ -4,13 +4,13 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 
+from ..io_utils import Reporter
 from .markdown_segmenter import MarkdownSegmenter, ProtectedText, TextBlock
 from .model_registry import ModelRegistry
 from .mt import MTTranslator
 from .postedit import LLMPostEditor, PostEditAborted, PostEditValidationError
 
 DebugCallback = Callable[[dict[str, Any]], None] | None
-Reporter = Callable[[str], None] | None
 
 
 @dataclass

@@ -1,10 +1,14 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 import frontmatter
+
+# Type alias for verbose output callbacks used across modules.
+Reporter = Callable[[str], None] | None
 
 
 @dataclass(frozen=True)
@@ -39,7 +43,7 @@ def load_note(note_path: Path, *, max_chars: int) -> NoteDetails:
 
     metadata = dict(post.metadata or {})
     body = post.content.strip()
-    truncated_body, truncated = _truncate(body, max_chars)
+    truncated_body, truncated = truncate(body, max_chars)
 
     note_title = (
         metadata.get("title") or metadata.get("name") or note_path.stem.replace("_", " ").replace("-", " ").title()
@@ -55,11 +59,20 @@ def load_note(note_path: Path, *, max_chars: int) -> NoteDetails:
     )
 
 
-def _truncate(value: str, max_chars: int) -> tuple[str, bool]:
-    """Return a truncated string and flag if truncation occurred."""
+def truncate(value: str, max_chars: int) -> tuple[str, bool]:
+    """Return a truncated string and flag if truncation occurred.
+
+    Args:
+        value: The string to truncate.
+        max_chars: Maximum number of characters allowed.
+
+    Returns:
+        A tuple of (result_string, was_truncated).
+        If truncation occurs, the result ends with " …".
+    """
     if len(value) <= max_chars:
         return value, False
     return value[: max_chars - 1].rstrip() + " …", True
 
 
-__all__ = ["NoteDetails", "load_note"]
+__all__ = ["NoteDetails", "Reporter", "load_note", "truncate"]
