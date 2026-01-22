@@ -62,14 +62,22 @@ FEEDBACK_SYSTEM_PROMPT = textwrap.dedent(
     - If a field is empty, output an empty array ([]) or empty string, not null.
     - Use consistent severity labels: low | medium | high.
     - Use consistent categories (definitions below).
+    - Do not use emojis or special symbols in the output.
 
     Categories:
-    - seo: keyword usage, density, placement in headings; meta optimization; search intent alignment
+    - seo: keyword usage and density throughout content; placement in headings and early paragraphs;
+      primary/secondary keyword balance; search intent alignment; internal linking opportunities;
+      content depth for keyword competitiveness
     - structure: heading hierarchy, section organization, logical flow, paragraph length
     - clarity: confusing sentences, ambiguous references, unexplained jargon, readability
     - style: tone consistency, voice, wordiness, audience appropriateness
     - evidence: unsupported claims, missing citations, statements needing fact-checking
     - other: issues not fitting the above categories
+
+    Focus behavior:
+    - When Focus is "all", review the draft across all categories with balanced attention.
+    - When Focus is a specific category, prioritize findings in that category but still report
+      critical (high severity) issues from other categories.
     """
 ).strip()
 
@@ -161,7 +169,7 @@ def build_feedback_prompt_bundle(context: FeedbackPromptContext) -> FeedbackProm
         search_intent=context.brief.search_intent,
         outline=" | ".join(context.brief.outline),
         faq=" | ".join(faq_entries),
-        focus=context.focus or "all",
+        focus=context.focus or "all (seo, structure, clarity, style, evidence)",
         selected_outline=", ".join(context.selected_outline) or "(all)",
         draft_sections_json=draft_sections_json,
         note_excerpt=context.note_excerpt or "No source note provided.",
