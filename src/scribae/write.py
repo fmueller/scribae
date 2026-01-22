@@ -14,7 +14,7 @@ from pydantic_ai import Agent
 from pydantic_ai.settings import ModelSettings
 
 from .brief import SeoBrief
-from .io_utils import NoteDetails, load_note
+from .io_utils import NoteDetails, Reporter, load_note
 from .language import (
     LanguageMismatchError,
     LanguageResolutionError,
@@ -26,8 +26,6 @@ from .llm import LLM_TIMEOUT_SECONDS, apply_optional_settings, make_model
 from .project import ProjectConfig
 from .prompts.write import SYSTEM_PROMPT, build_faq_prompt, build_user_prompt
 from .snippets import SnippetSelection, build_snippet_block
-
-Reporter = Callable[[str], None] | None
 
 
 class WritingError(Exception):

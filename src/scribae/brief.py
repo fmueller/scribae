@@ -14,7 +14,7 @@ from pydantic_ai import Agent, NativeOutput, UnexpectedModelBehavior
 from pydantic_ai.settings import ModelSettings
 
 from .idea import Idea, IdeaList
-from .io_utils import NoteDetails, load_note
+from .io_utils import NoteDetails, Reporter, load_note
 from .language import LanguageMismatchError, LanguageResolutionError, ensure_language_output, resolve_output_language
 from .llm import LLM_OUTPUT_RETRIES, LLM_TIMEOUT_SECONDS, OpenAISettings, apply_optional_settings, make_model
 from .project import ProjectConfig
@@ -140,9 +140,6 @@ class BriefingContext:
     project: ProjectConfig
     prompts: PromptBundle
     language: str
-
-
-Reporter = Callable[[str], None] | None
 
 
 def prepare_context(

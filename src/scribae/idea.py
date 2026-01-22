@@ -13,7 +13,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 from pydantic_ai import Agent, NativeOutput, UnexpectedModelBehavior
 from pydantic_ai.settings import ModelSettings
 
-from .io_utils import NoteDetails, load_note
+from .io_utils import NoteDetails, Reporter, load_note
 from .language import LanguageMismatchError, LanguageResolutionError, ensure_language_output, resolve_output_language
 from .llm import (
     LLM_OUTPUT_RETRIES,
@@ -83,9 +83,6 @@ class IdeaContext:
     project: ProjectConfig
     prompts: IdeaPromptBundle
     language: str
-
-
-Reporter = Callable[[str], None] | None
 
 
 def prepare_context(

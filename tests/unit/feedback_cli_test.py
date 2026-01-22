@@ -173,3 +173,75 @@ def test_feedback_section_range_selects_outline(
 
     assert result.exit_code == 0
     assert "SelectedOutlineRange: Introduction to Observability, Logging Foundations" in result.stdout
+
+
+def test_feedback_passes_seed_and_top_p(
+    monkeypatch: pytest.MonkeyPatch,
+    body_path: Path,
+    brief_path: Path,
+    tmp_path: Path,
+) -> None:
+    captured_kwargs: dict[str, object] = {}
+    stub = StubLLM()
+
+    def capture_generate(*args: object, **kwargs: object) -> FeedbackReport:
+        captured_kwargs.update(kwargs)
+        return stub.report
+
+    monkeypatch.setattr("scribae.feedback_cli.generate_feedback_report", capture_generate)
+
+    output_path = tmp_path / "feedback.md"
+    result = runner.invoke(
+        app,
+        [
+            "feedback",
+            "--body",
+            str(body_path),
+            "--brief",
+            str(brief_path),
+            "--out",
+            str(output_path),
+            "--seed",
+            "42",
+            "--top-p",
+            "0.9",
+        ],
+    )
+
+    assert result.exit_code == 0, result.stderr
+    assert captured_kwargs.get("seed") == 42
+    assert captured_kwargs.get("top_p") == 0.9
+
+
+def test_feedback_seed_and_top_p_optional(
+    monkeypatch: pytest.MonkeyPatch,
+    body_path: Path,
+    brief_path: Path,
+    tmp_path: Path,
+) -> None:
+    captured_kwargs: dict[str, object] = {}
+    stub = StubLLM()
+
+    def capture_generate(*args: object, **kwargs: object) -> FeedbackReport:
+        captured_kwargs.update(kwargs)
+        return stub.report
+
+    monkeypatch.setattr("scribae.feedback_cli.generate_feedback_report", capture_generate)
+
+    output_path = tmp_path / "feedback.md"
+    result = runner.invoke(
+        app,
+        [
+            "feedback",
+            "--body",
+            str(body_path),
+            "--brief",
+            str(brief_path),
+            "--out",
+            str(output_path),
+        ],
+    )
+
+    assert result.exit_code == 0, result.stderr
+    assert captured_kwargs.get("seed") is None
+    assert captured_kwargs.get("top_p") is None

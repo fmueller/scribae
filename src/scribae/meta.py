@@ -15,6 +15,7 @@ from pydantic_ai import Agent, NativeOutput, UnexpectedModelBehavior
 from pydantic_ai.settings import ModelSettings
 
 from .brief import SeoBrief
+from .io_utils import Reporter, truncate
 from .language import LanguageMismatchError, LanguageResolutionError, ensure_language_output, resolve_output_language
 from .llm import LLM_OUTPUT_RETRIES, LLM_TIMEOUT_SECONDS, OpenAISettings, apply_optional_settings, make_model
 from .project import ProjectConfig
@@ -24,8 +25,6 @@ from .prompts.meta import (
     MetaPromptBundle,
     build_meta_prompt_bundle,
 )
-
-Reporter = Callable[[str], None] | None
 
 
 class MetaError(Exception):
@@ -346,7 +345,7 @@ def _load_body(body_path: Path, *, max_chars: int) -> BodyDocument:
 
     metadata = dict(post.metadata or {})
     content = post.content.strip()
-    excerpt, truncated = _truncate(content, max_chars)
+    excerpt, truncated = truncate(content, max_chars)
     reading_time = _estimate_reading_time(content)
     return BodyDocument(
         path=body_path,
@@ -408,7 +407,7 @@ def _build_seed_meta(
         if _is_missing(meta["title"]) and brief is not None:
             meta["title"] = brief.title
         if _is_missing(meta["excerpt"]) and brief is not None:
-            meta["excerpt"] = _truncate(brief.meta_description, 200)[0]
+            meta["excerpt"] = truncate(brief.meta_description, 200)[0]
         if _is_missing(meta["keywords"]) and brief is not None:
             meta["keywords"] = [brief.primary_keyword, *brief.secondary_keywords]
             fabricated = True
@@ -569,12 +568,6 @@ def _meta_language_text(meta: ArticleMeta) -> str:
             language,
         ]
     )
-
-
-def _truncate(value: str, max_chars: int) -> tuple[str, bool]:
-    if len(value) <= max_chars:
-        return value, False
-    return value[: max_chars - 1].rstrip() + " …", True
 
 
 def _estimate_reading_time(text: str) -> int:
