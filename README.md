@@ -146,6 +146,8 @@ scribae write --note notes.md --brief brief.json --seed 42 --top-p 1.0 --out dra
 
 The `translate` command uses `--postedit-temperature`, `--postedit-top-p`, and `--postedit-seed` for the LLM post-edit pass.
 
+> **Note:** Seed behavior depends on the underlying model. Some models (e.g., certain Ollama models) may not fully support deterministic output even with `--seed` set. For guaranteed reproducibility, test with your specific model and endpoint.
+
 ## Usage examples
 
 ### Idea discovery

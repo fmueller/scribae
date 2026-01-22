@@ -16,7 +16,7 @@ from pydantic_ai.settings import ModelSettings
 from .idea import Idea, IdeaList
 from .io_utils import NoteDetails, load_note
 from .language import LanguageMismatchError, LanguageResolutionError, ensure_language_output, resolve_output_language
-from .llm import LLM_OUTPUT_RETRIES, LLM_TIMEOUT_SECONDS, OpenAISettings, make_model
+from .llm import LLM_OUTPUT_RETRIES, LLM_TIMEOUT_SECONDS, OpenAISettings, apply_optional_settings, make_model
 from .project import ProjectConfig
 from .prompts.brief import SYSTEM_PROMPT, PromptBundle, build_prompt_bundle
 
@@ -337,10 +337,7 @@ def _create_agent(
     """Instantiate the Pydantic AI agent for generating briefs."""
     settings.configure_environment()
     model_settings = ModelSettings(temperature=temperature)
-    if top_p is not None:
-        model_settings["top_p"] = top_p
-    if seed is not None:
-        model_settings["seed"] = seed
+    apply_optional_settings(model_settings, top_p=top_p, seed=seed)
     model = make_model(model_name, model_settings=model_settings, settings=settings)
     return Agent[None, SeoBrief](
         model=model,

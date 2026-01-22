@@ -19,6 +19,7 @@ from .llm import (
     LLM_OUTPUT_RETRIES,
     LLM_TIMEOUT_SECONDS,
     OpenAISettings,
+    apply_optional_settings,
     make_model,
 )
 from .project import ProjectConfig
@@ -239,10 +240,7 @@ def _create_agent(
 
     settings.configure_environment()
     model_settings = ModelSettings(temperature=temperature)
-    if top_p is not None:
-        model_settings["top_p"] = top_p
-    if seed is not None:
-        model_settings["seed"] = seed
+    apply_optional_settings(model_settings, top_p=top_p, seed=seed)
     model = make_model(model_name, model_settings=model_settings, settings=settings)
     return Agent[None, IdeaList](
         model=model,
