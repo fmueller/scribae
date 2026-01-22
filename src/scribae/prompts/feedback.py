@@ -61,7 +61,15 @@ FEEDBACK_SYSTEM_PROMPT = textwrap.dedent(
     - Be conservative about facts. If a claim is not supported by the provided note, flag it as needing evidence.
     - If a field is empty, output an empty array ([]) or empty string, not null.
     - Use consistent severity labels: low | medium | high.
-    - Use consistent categories: seo | structure | clarity | style | evidence | other.
+    - Use consistent categories (definitions below).
+
+    Categories:
+    - seo: keyword usage, density, placement in headings; meta optimization; search intent alignment
+    - structure: heading hierarchy, section organization, logical flow, paragraph length
+    - clarity: confusing sentences, ambiguous references, unexplained jargon, readability
+    - style: tone consistency, voice, wordiness, audience appropriateness
+    - evidence: unsupported claims, missing citations, statements needing fact-checking
+    - other: issues not fitting the above categories
     """
 ).strip()
 
