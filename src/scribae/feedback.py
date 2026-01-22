@@ -231,6 +231,7 @@ class FeedbackFocus(str):
     CLARITY = "clarity"
     STYLE = "style"
     EVIDENCE = "evidence"
+    ALL = "all"
 
     @classmethod
     def from_raw(cls, value: str) -> FeedbackFocus:
@@ -239,6 +240,21 @@ class FeedbackFocus(str):
         if lowered not in allowed:
             raise FeedbackValidationError("--focus must be seo, structure, clarity, style, or evidence.")
         return cls(lowered)
+
+    @classmethod
+    def parse_list(cls, value: str) -> list[str]:
+        parts = [item.strip() for item in value.split(",") if item.strip()]
+        if not parts:
+            raise FeedbackValidationError("--focus must include at least one category.")
+        allowed = {cls.SEO, cls.STRUCTURE, cls.CLARITY, cls.STYLE, cls.EVIDENCE}
+        normalized: list[str] = []
+        for part in parts:
+            lowered = part.lower()
+            if lowered not in allowed:
+                raise FeedbackValidationError("--focus must be seo, structure, clarity, style, or evidence.")
+            if lowered not in normalized:
+                normalized.append(lowered)
+        return normalized
 
 
 @dataclass(frozen=True)
@@ -263,7 +279,7 @@ class FeedbackContext:
     brief: SeoBrief
     project: ProjectConfig
     note: NoteDetails | None
-    focus: str | None
+    focus: list[str] | None
     language: str
     selected_outline: list[str]
     selected_sections: list[BodySection]
@@ -281,7 +297,7 @@ def prepare_context(
     project: ProjectConfig,
     note_path: Path | None = None,
     language: str | None = None,
-    focus: str | None = None,
+    focus: list[str] | None = None,
     section_range: tuple[int, int] | None = None,
     max_body_chars: int = 12000,
     max_note_chars: int = 6000,
@@ -509,7 +525,7 @@ class _FeedbackPromptContext:
     note_excerpt: str | None
     project: ProjectConfig
     language: str
-    focus: str | None
+    focus: list[str] | None
     selected_outline: list[str]
     selected_sections: list[dict[str, str]]
 

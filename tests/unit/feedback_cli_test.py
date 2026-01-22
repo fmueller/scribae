@@ -176,6 +176,31 @@ def test_feedback_section_range_selects_outline(
     assert "SelectedOutlineRange: Introduction to Observability, Logging Foundations" in result.stdout
 
 
+def test_feedback_focus_multiple_categories_limits_prompt(
+    body_multi_section_path: Path,
+    brief_path: Path,
+) -> None:
+    result = runner.invoke(
+        app,
+        [
+            "feedback",
+            "--body",
+            str(body_multi_section_path),
+            "--brief",
+            str(brief_path),
+            "--focus",
+            "seo, clarity",
+            "--dry-run",
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert "Focus: seo, clarity" in result.stdout
+    assert "In-scope categories: seo, clarity" in result.stdout
+    assert "Critical override: Always include high severity issues from any category." in result.stdout
+    assert "- structure:" not in result.stdout
+
+
 def test_feedback_passes_seed_and_top_p(
     monkeypatch: pytest.MonkeyPatch,
     body_path: Path,

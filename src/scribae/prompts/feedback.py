@@ -31,7 +31,7 @@ class FeedbackPromptContext(Protocol):
     def language(self) -> str: ...
 
     @property
-    def focus(self) -> str | None: ...
+    def focus(self) -> list[str] | None: ...
 
     @property
     def selected_outline(self) -> list[str]: ...
@@ -61,30 +61,13 @@ FEEDBACK_SYSTEM_PROMPT = textwrap.dedent(
     - Be conservative about facts. If a claim is not supported by the provided note, flag it as needing evidence.
     - If a field is empty, output an empty array ([]) or empty string, not null.
     - Use consistent severity labels: low | medium | high.
-    - Use consistent categories (definitions below).
+    - Use consistent categories (seo | structure | clarity | style | evidence | other).
     - Do not use emojis or special symbols in the output.
 
-    Categories:
-    - seo: keyword usage and density throughout content; placement in headings and early paragraphs;
-      primary/secondary keyword balance; search intent alignment; internal linking opportunities;
-      content depth for keyword competitiveness
-    - structure: heading hierarchy; section organization and alignment with brief outline; logical flow
-      and transitions between sections; paragraph length; intro/conclusion quality; scannability
-      (appropriate use of lists, subheadings for long sections)
-    - clarity: confusing sentences; ambiguous references; unexplained jargon or acronyms; readability;
-      sentence length variation; passive voice overuse; complex nested clauses; clear topic sentences
-    - style: tone consistency; voice; wordiness and filler phrases; audience appropriateness;
-      repetitive phrasing or word choices; clichés; formality level matching project tone; sentence
-      variety
-    - evidence: unsupported claims; missing citations; statements needing fact-checking; statistics
-      without sources; vague attributions ("studies show", "experts say"); claims contradicting the
-      source note; outdated information
-    - other: issues not fitting the above categories
-
     Focus behavior:
-    - When Focus is "all", review the draft across all categories with balanced attention.
-    - When Focus is a specific category, prioritize findings in that category but still report
-      critical (high severity) issues from other categories.
+    - When Focus is "all" (or missing), review the draft across all categories with balanced attention.
+    - When Focus specifies one or more categories, only report findings in those categories, but still
+      report critical (high severity) issues from other categories.
     """
 ).strip()
 
@@ -108,7 +91,12 @@ FEEDBACK_USER_PROMPT_TEMPLATE = textwrap.dedent(
 
     [REVIEW SCOPE]
     Focus: {focus}
+    In-scope categories: {focus_categories}
     SelectedOutlineRange: {selected_outline}
+    Critical override: Always include high severity issues from any category.
+
+    [FOCUS CATEGORY DEFINITIONS]
+    {category_definitions}
 
     [DRAFT SECTIONS]
     The following sections are extracted from the draft for review:
@@ -126,8 +114,43 @@ FEEDBACK_USER_PROMPT_TEMPLATE = textwrap.dedent(
 ).strip()
 
 
+_CATEGORY_DEFINITIONS: dict[str, str] = {
+    "seo": (
+        "keyword usage and density throughout content; placement in headings and early paragraphs; "
+        "primary/secondary keyword balance; search intent alignment; internal linking opportunities; "
+        "content depth for keyword competitiveness"
+    ),
+    "structure": (
+        "heading hierarchy; section organization and alignment with brief outline; logical flow "
+        "and transitions between sections; paragraph length; intro/conclusion quality; scannability "
+        "(appropriate use of lists, subheadings for long sections)"
+    ),
+    "clarity": (
+        "confusing sentences; ambiguous references; unexplained jargon or acronyms; readability; "
+        "sentence length variation; passive voice overuse; complex nested clauses; clear topic sentences"
+    ),
+    "style": (
+        "tone consistency; voice; wordiness and filler phrases; audience appropriateness; "
+        "repetitive phrasing or word choices; clichés; formality level matching project tone; sentence "
+        "variety"
+    ),
+    "evidence": (
+        "unsupported claims; missing citations; statements needing fact-checking; statistics "
+        "without sources; vague attributions (\"studies show\", \"experts say\"); claims contradicting the "
+        "source note; outdated information"
+    ),
+}
+
+
+def _format_category_definitions(categories: list[str]) -> str:
+    lines = [f"- {category}: {_CATEGORY_DEFINITIONS[category]}" for category in categories]
+    return "\n".join(lines) if lines else "- none"
+
+
 def build_feedback_prompt_bundle(context: FeedbackPromptContext) -> FeedbackPromptBundle:
     """Render the system and user prompts for the feedback agent."""
+    focus_categories = context.focus or list(_CATEGORY_DEFINITIONS.keys())
+    focus_label = ", ".join(focus_categories)
     project_keywords = ", ".join(context.project.get("keywords") or []) or "none"
     faq_entries = [f"{item.question} — {item.answer}" for item in context.brief.faq]
     schema_json = json.dumps(
@@ -176,11 +199,13 @@ def build_feedback_prompt_bundle(context: FeedbackPromptContext) -> FeedbackProm
         search_intent=context.brief.search_intent,
         outline=" | ".join(context.brief.outline),
         faq=" | ".join(faq_entries),
-        focus=context.focus or "all (seo, structure, clarity, style, evidence)",
+        focus=focus_label or "all (seo, structure, clarity, style, evidence)",
+        focus_categories=focus_label or "seo, structure, clarity, style, evidence",
         selected_outline=", ".join(context.selected_outline) or "(all)",
         draft_sections_json=draft_sections_json,
         note_excerpt=context.note_excerpt or "No source note provided.",
         schema_json=schema_json,
+        category_definitions=_format_category_definitions(focus_categories),
     )
     return FeedbackPromptBundle(system_prompt=FEEDBACK_SYSTEM_PROMPT, user_prompt=prompt)
 
