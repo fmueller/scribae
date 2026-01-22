@@ -20,6 +20,35 @@ from .llm import LLM_OUTPUT_RETRIES, LLM_TIMEOUT_SECONDS, OpenAISettings, apply_
 from .project import ProjectConfig
 from .prompts.feedback import FEEDBACK_SYSTEM_PROMPT, FeedbackPromptBundle, build_feedback_prompt_bundle
 
+# Pattern to match emoji characters across common Unicode ranges
+_EMOJI_PATTERN = re.compile(
+    "["
+    "\U0001F600-\U0001F64F"  # emoticons
+    "\U0001F300-\U0001F5FF"  # symbols & pictographs
+    "\U0001F680-\U0001F6FF"  # transport & map symbols
+    "\U0001F1E0-\U0001F1FF"  # flags
+    "\U00002700-\U000027BF"  # dingbats
+    "\U0001F900-\U0001F9FF"  # supplemental symbols & pictographs
+    "\U0001FA00-\U0001FA6F"  # chess symbols, extended-A
+    "\U0001FA70-\U0001FAFF"  # symbols & pictographs extended-A
+    "\U00002600-\U000026FF"  # misc symbols
+    "\U0001F700-\U0001F77F"  # alchemical symbols
+    "\U0001F780-\U0001F7FF"  # geometric shapes extended
+    "\U0001F800-\U0001F8FF"  # supplemental arrows-C
+    "\U0001F3FB-\U0001F3FF"  # skin tone modifiers
+    "\uFE0F"  # variation selector-16 (emoji presentation)
+    "\u200D"  # zero-width joiner (used in combined emojis)
+    "]+",
+    flags=re.UNICODE,
+)
+
+
+def strip_emojis(value: str) -> str:
+    """Remove emoji characters from a string and clean up extra whitespace."""
+    result = _EMOJI_PATTERN.sub(" ", value)
+    # Collapse multiple spaces and strip
+    return " ".join(result.split())
+
 
 class FeedbackError(Exception):
     """Base class for feedback command failures."""
@@ -84,7 +113,7 @@ class FeedbackFinding(BaseModel):
     @field_validator("message", mode="before")
     @classmethod
     def _strip_message(cls, value: str) -> str:
-        return str(value).strip()
+        return strip_emojis(str(value))
 
 
 class FeedbackSummary(BaseModel):
@@ -100,7 +129,7 @@ class FeedbackSummary(BaseModel):
             value = [value]
         if not isinstance(value, list):
             raise TypeError("value must be a list")
-        return [str(item).strip() for item in value if str(item).strip()]
+        return [stripped for item in value if (stripped := strip_emojis(str(item)))]
 
 
 class BriefAlignment(BaseModel):
@@ -180,7 +209,7 @@ class FeedbackReport(BaseModel):
             value = [value]
         if not isinstance(value, list):
             raise TypeError("value must be a list")
-        return [str(item).strip() for item in value if str(item).strip()]
+        return [stripped for item in value if (stripped := strip_emojis(str(item)))]
 
 
 class FeedbackFormat(str):
@@ -663,7 +692,11 @@ def _report(reporter: Reporter, message: str) -> None:
 
 
 __all__ = [
+    "BriefAlignment",
+    "FeedbackFinding",
+    "FeedbackLocation",
     "FeedbackReport",
+    "FeedbackSummary",
     "FeedbackFormat",
     "FeedbackFocus",
     "FeedbackContext",
@@ -672,12 +705,14 @@ __all__ = [
     "FeedbackFileError",
     "FeedbackLLMError",
     "FeedbackBriefError",
-    "prepare_context",
+    "SectionNote",
     "build_prompt_bundle",
-    "render_dry_run_prompt",
     "generate_feedback_report",
+    "parse_section_range",
+    "prepare_context",
+    "render_dry_run_prompt",
     "render_json",
     "render_markdown",
     "save_prompt_artifacts",
-    "parse_section_range",
+    "strip_emojis",
 ]

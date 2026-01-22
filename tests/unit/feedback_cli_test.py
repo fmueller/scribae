@@ -13,6 +13,7 @@ from scribae.feedback import (
     FeedbackReport,
     FeedbackSummary,
     SectionNote,
+    strip_emojis,
 )
 from scribae.main import app
 
@@ -245,3 +246,101 @@ def test_feedback_seed_and_top_p_optional(
     assert result.exit_code == 0, result.stderr
     assert captured_kwargs.get("seed") is None
     assert captured_kwargs.get("top_p") is None
+
+
+class TestStripEmojis:
+    def test_strips_common_emojis(self) -> None:
+        assert strip_emojis("Add citations 📚") == "Add citations"
+        assert strip_emojis("Fix heading ✅") == "Fix heading"
+        assert strip_emojis("🚀 Improve intro") == "Improve intro"
+
+    def test_strips_multiple_emojis(self) -> None:
+        assert strip_emojis("📚 Add citations ✅ and fix heading 🔧") == "Add citations and fix heading"
+
+    def test_preserves_text_without_emojis(self) -> None:
+        assert strip_emojis("Add citations for claims") == "Add citations for claims"
+
+    def test_handles_empty_string(self) -> None:
+        assert strip_emojis("") == ""
+
+    def test_strips_emoji_only_string(self) -> None:
+        assert strip_emojis("🚀✅📚") == ""
+
+    def test_preserves_special_characters(self) -> None:
+        assert strip_emojis("Use \"quotes\" and (parens)") == "Use \"quotes\" and (parens)"
+        assert strip_emojis("Items: a, b, c") == "Items: a, b, c"
+
+    def test_strips_flag_emojis(self) -> None:
+        assert strip_emojis("Region 🇺🇸 specific") == "Region specific"
+
+    def test_strips_skin_tone_emojis(self) -> None:
+        assert strip_emojis("Thumbs up 👍🏻👍🏿") == "Thumbs up"
+
+
+class TestFeedbackReportStripsEmojis:
+    def test_checklist_emojis_stripped(self) -> None:
+        report = FeedbackReport(
+            summary=FeedbackSummary(issues=["Issue 1"], strengths=["Strength 1"]),
+            brief_alignment=BriefAlignment(
+                intent="Matches intent",
+                outline_covered=[],
+                outline_missing=[],
+                keywords_covered=[],
+                keywords_missing=[],
+                faq_covered=[],
+                faq_missing=[],
+            ),
+            section_notes=[],
+            evidence_gaps=[],
+            findings=[],
+            checklist=["📚 Add citations", "✅ Fix heading"],
+        )
+        assert report.checklist == ["Add citations", "Fix heading"]
+
+    def test_summary_emojis_stripped(self) -> None:
+        report = FeedbackReport(
+            summary=FeedbackSummary(
+                issues=["🚨 Critical issue", "⚠️ Warning"],
+                strengths=["✅ Good intro", "👍 Clear structure"],
+            ),
+            brief_alignment=BriefAlignment(
+                intent="Matches intent",
+                outline_covered=[],
+                outline_missing=[],
+                keywords_covered=[],
+                keywords_missing=[],
+                faq_covered=[],
+                faq_missing=[],
+            ),
+            section_notes=[],
+            evidence_gaps=[],
+            findings=[],
+            checklist=[],
+        )
+        assert report.summary.issues == ["Critical issue", "Warning"]
+        assert report.summary.strengths == ["Good intro", "Clear structure"]
+
+    def test_findings_message_emojis_stripped(self) -> None:
+        report = FeedbackReport(
+            summary=FeedbackSummary(issues=[], strengths=[]),
+            brief_alignment=BriefAlignment(
+                intent="Matches intent",
+                outline_covered=[],
+                outline_missing=[],
+                keywords_covered=[],
+                keywords_missing=[],
+                faq_covered=[],
+                faq_missing=[],
+            ),
+            section_notes=[],
+            evidence_gaps=[],
+            findings=[
+                FeedbackFinding(
+                    severity="high",
+                    category="evidence",
+                    message="⚠️ Claim needs citation 📚",
+                )
+            ],
+            checklist=[],
+        )
+        assert report.findings[0].message == "Claim needs citation"
