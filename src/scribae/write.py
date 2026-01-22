@@ -22,7 +22,7 @@ from .language import (
     normalize_language,
     resolve_output_language,
 )
-from .llm import LLM_TIMEOUT_SECONDS, make_model
+from .llm import LLM_TIMEOUT_SECONDS, apply_optional_settings, make_model
 from .project import ProjectConfig
 from .prompts.write import SYSTEM_PROMPT, build_faq_prompt, build_user_prompt
 from .snippets import SnippetSelection, build_snippet_block
@@ -336,10 +336,7 @@ def _invoke_model(
 ) -> str:
     """Call the writer model and return Markdown text."""
     model_settings = ModelSettings(temperature=temperature)
-    if top_p is not None:
-        model_settings["top_p"] = top_p
-    if seed is not None:
-        model_settings["seed"] = seed
+    apply_optional_settings(model_settings, top_p=top_p, seed=seed)
     model = make_model(model_name, model_settings=model_settings)
     agent = Agent(model=model, instructions=SYSTEM_PROMPT)
 

@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING, Any, Literal, cast
 from pydantic_ai import Agent, NativeOutput, UnexpectedModelBehavior
 from pydantic_ai.settings import ModelSettings
 
-from scribae.llm import DEFAULT_MODEL_NAME, LLM_OUTPUT_RETRIES, OpenAISettings, make_model
+from scribae.llm import DEFAULT_MODEL_NAME, LLM_OUTPUT_RETRIES, OpenAISettings, apply_optional_settings, make_model
 
 from .markdown_segmenter import ProtectedText
 
@@ -450,10 +450,7 @@ class LLMPostEditor:
         settings = OpenAISettings.from_env()
         settings.configure_environment()
         model_settings = ModelSettings(temperature=temperature)
-        if top_p is not None:
-            model_settings["top_p"] = top_p
-        if seed is not None:
-            model_settings["seed"] = seed
+        apply_optional_settings(model_settings, top_p=top_p, seed=seed)
         model = make_model(model_name, model_settings=model_settings, settings=settings)
         return Agent[None, str](
             model=model,

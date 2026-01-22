@@ -43,6 +43,23 @@ def make_model(model_name: str, *, model_settings: ModelSettings,
     return OpenAIChatModel(model_name, provider=provider, settings=model_settings)
 
 
+def apply_optional_settings(
+    model_settings: ModelSettings,
+    *,
+    top_p: float | None = None,
+    seed: int | None = None,
+) -> None:
+    """Apply optional sampling parameters to model settings in-place.
+
+    This helper reduces repetitive conditional assignment when configuring
+    `top_p` and `seed` parameters across the codebase.
+    """
+    if top_p is not None:
+        model_settings["top_p"] = top_p
+    if seed is not None:
+        model_settings["seed"] = seed
+
+
 __all__ = [
     "OpenAISettings",
     "DEFAULT_MODEL_NAME",
@@ -50,5 +67,6 @@ __all__ = [
     "DEFAULT_API_KEY",
     "LLM_OUTPUT_RETRIES",
     "LLM_TIMEOUT_SECONDS",
+    "apply_optional_settings",
     "make_model",
 ]
