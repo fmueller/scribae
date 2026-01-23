@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Any, cast
 
 import pytest
 from typer.testing import CliRunner
@@ -390,7 +391,11 @@ class TestNormalizeFindingCategories:
             section_notes=[],
             evidence_gaps=[],
             findings=[
-                FeedbackFinding(severity="medium", category=cat, message=f"Issue in {cat}")
+                FeedbackFinding(
+                    severity="medium",
+                    category=cast(Any, cat),
+                    message=f"Issue in {cat}",
+                )
                 for cat in categories
             ],
             checklist=[],
