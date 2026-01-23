@@ -226,6 +226,8 @@ Options:
 
 ### Setup
 
+The `--all-extras` flag is required for development as it installs PyTorch, which is needed for mypy type checking to pass.
+
 ```bash
 git clone https://github.com/fmueller/scribae.git
 cd scribae

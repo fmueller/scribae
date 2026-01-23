@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 from types import ModuleType
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any
 
 from .model_registry import ModelRegistry, RouteStep
 
@@ -69,7 +69,7 @@ class MTTranslator:
                 "`uv sync --extra translation` or "
                 "`uv sync --extra translation --index pytorch-cpu` (CPU-only)."
             ) from exc
-        return cast(ModuleType, torch)
+        return torch
 
     def prefetch(self, steps: Iterable[RouteStep]) -> None:
         """Warm translation pipelines for the provided route steps."""
