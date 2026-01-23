@@ -402,6 +402,8 @@ def generate_feedback_report(
     except Exception as exc:  # pragma: no cover - surfaced to CLI
         raise FeedbackLLMError(f"LLM request failed: {exc}") from exc
 
+    # Remap any out-of-scope categories to "other"
+    report = _normalize_finding_categories(report, context.focus)
     return report
 
 
@@ -564,6 +566,38 @@ def _feedback_language_text(report: FeedbackReport) -> str:
     checklist = " ".join(report.checklist)
     section_notes = " ".join([" ".join(item.notes) for item in report.section_notes])
     return "\n".join([issue_text, strength_text, findings, checklist, section_notes]).strip()
+
+
+def _normalize_finding_categories(report: FeedbackReport, focus: list[str] | None) -> FeedbackReport:
+    """Remap any finding categories outside the focus scope to 'other'.
+
+    If focus is None (all categories), no remapping is performed.
+    """
+    if focus is None:
+        return report
+
+    allowed = set(focus) | {"other"}
+    needs_remap = any(f.category not in allowed for f in report.findings)
+    if not needs_remap:
+        return report
+
+    remapped_findings = [
+        FeedbackFinding(
+            severity=f.severity,
+            category=f.category if f.category in allowed else "other",
+            message=f.message,
+            location=f.location,
+        )
+        for f in report.findings
+    ]
+    return FeedbackReport(
+        summary=report.summary,
+        brief_alignment=report.brief_alignment,
+        section_notes=report.section_notes,
+        evidence_gaps=report.evidence_gaps,
+        findings=remapped_findings,
+        checklist=report.checklist,
+    )
 
 
 def _load_body(body_path: Path, *, max_chars: int) -> BodyDocument:

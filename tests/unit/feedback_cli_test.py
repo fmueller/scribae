@@ -196,8 +196,8 @@ def test_feedback_focus_multiple_categories_limits_prompt(
 
     assert result.exit_code == 0
     assert "Focus: seo, clarity" in result.stdout
-    assert "In-scope categories: seo, clarity" in result.stdout
-    assert "Critical override: Always include high severity issues from any category." in result.stdout
+    assert "Allowed categories: seo, clarity, other" in result.stdout
+    assert 'Use "other" only for high severity issues' in result.stdout
     # Verify category definitions are limited to selected categories
     assert "- structure:" not in result.stdout
     # Verify JSON schema category enum only lists selected categories + "other" for critical overrides
@@ -372,3 +372,55 @@ class TestFeedbackReportStripsEmojis:
             checklist=[],
         )
         assert report.findings[0].message == "Claim needs citation"
+
+
+class TestNormalizeFindingCategories:
+    def _make_report(self, categories: list[str]) -> FeedbackReport:
+        return FeedbackReport(
+            summary=FeedbackSummary(issues=[], strengths=[]),
+            brief_alignment=BriefAlignment(
+                intent="Matches intent",
+                outline_covered=[],
+                outline_missing=[],
+                keywords_covered=[],
+                keywords_missing=[],
+                faq_covered=[],
+                faq_missing=[],
+            ),
+            section_notes=[],
+            evidence_gaps=[],
+            findings=[
+                FeedbackFinding(severity="medium", category=cat, message=f"Issue in {cat}")
+                for cat in categories
+            ],
+            checklist=[],
+        )
+
+    def test_no_focus_returns_unchanged(self) -> None:
+        from scribae.feedback import _normalize_finding_categories
+
+        report = self._make_report(["seo", "structure", "clarity"])
+        result = _normalize_finding_categories(report, focus=None)
+        assert result is report
+
+    def test_all_in_scope_returns_unchanged(self) -> None:
+        from scribae.feedback import _normalize_finding_categories
+
+        report = self._make_report(["seo", "clarity", "other"])
+        result = _normalize_finding_categories(report, focus=["seo", "clarity"])
+        assert [f.category for f in result.findings] == ["seo", "clarity", "other"]
+
+    def test_out_of_scope_remapped_to_other(self) -> None:
+        from scribae.feedback import _normalize_finding_categories
+
+        report = self._make_report(["seo", "structure", "evidence"])
+        result = _normalize_finding_categories(report, focus=["seo", "clarity"])
+        assert [f.category for f in result.findings] == ["seo", "other", "other"]
+
+    def test_preserves_other_fields(self) -> None:
+        from scribae.feedback import _normalize_finding_categories
+
+        report = self._make_report(["structure"])
+        result = _normalize_finding_categories(report, focus=["seo"])
+        assert result.findings[0].severity == "medium"
+        assert result.findings[0].message == "Issue in structure"

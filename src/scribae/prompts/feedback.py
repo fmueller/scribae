@@ -63,13 +63,9 @@ FEEDBACK_SYSTEM_PROMPT = textwrap.dedent(
     - Be conservative about facts. If a claim is not supported by the provided note, flag it as needing evidence.
     - If a field is empty, output an empty array ([]) or empty string, not null.
     - Use consistent severity labels: low | medium | high.
-    - Use consistent categories (seo | structure | clarity | style | evidence | other).
+    - ONLY use category values listed in the schema. DO NOT use any other category values.
+    - Use "other" for critical issues outside the focus scope.
     - Do not use emojis or special symbols in the output.
-
-    Focus behavior:
-    - When Focus is "all" (or missing), review the draft across all categories with balanced attention.
-    - When Focus specifies one or more categories, only report findings in those categories, but still
-      report critical (high severity) issues from other categories.
     """
 ).strip()
 
@@ -93,9 +89,9 @@ FEEDBACK_USER_PROMPT_TEMPLATE = textwrap.dedent(
 
     [REVIEW SCOPE]
     Focus: {focus}
-    In-scope categories: {focus_categories}
+    Allowed categories: {focus_categories}, other
     SelectedOutlineRange: {selected_outline}
-    Critical override: Always include high severity issues from any category.
+    Note: Use "other" only for high severity issues that fall outside the focused categories.
 
     [FOCUS CATEGORY DEFINITIONS]
     {category_definitions}
