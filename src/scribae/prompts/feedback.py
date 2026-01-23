@@ -90,7 +90,7 @@ FEEDBACK_USER_PROMPT_TEMPLATE = textwrap.dedent(
     [REVIEW SCOPE]
     Focus: {focus}
     Allowed categories: {focus_categories}, other
-    SelectedOutlineRange: {selected_outline}
+    {sections_under_review_line}
     Note: Use "other" only for high severity issues that fall outside the focused categories.
 
     [FOCUS CATEGORY DEFINITIONS]
@@ -115,6 +115,18 @@ FEEDBACK_USER_PROMPT_TEMPLATE = textwrap.dedent(
 def _format_category_definitions(categories: list[str]) -> str:
     lines = [f"- {category}: {CATEGORY_DEFINITIONS[category]}" for category in categories]
     return "\n".join(lines) if lines else "- none"
+
+
+def _format_sections_under_review(selected_outline: list[str], total_outline: int) -> str:
+    """Format SectionsUnderReview line, or empty string if all sections are selected."""
+    if len(selected_outline) >= total_outline:
+        # All sections selected - omit the line entirely (redundant with Outline above)
+        return ""
+    headings = ", ".join(selected_outline)
+    return (
+        f"SectionsUnderReview: {headings}\n"
+        "Only evaluate outline_covered and outline_missing for these sections.\n"
+    )
 
 
 def build_feedback_prompt_bundle(context: FeedbackPromptContext) -> FeedbackPromptBundle:
@@ -158,6 +170,9 @@ def build_feedback_prompt_bundle(context: FeedbackPromptContext) -> FeedbackProm
         ensure_ascii=False,
     )
     draft_sections_json = json.dumps(context.selected_sections, indent=2, ensure_ascii=False)
+    sections_under_review_line = _format_sections_under_review(
+        context.selected_outline, len(context.brief.outline)
+    )
     prompt = FEEDBACK_USER_PROMPT_TEMPLATE.format(
         site_name=context.project["site_name"],
         domain=context.project["domain"],
@@ -173,7 +188,7 @@ def build_feedback_prompt_bundle(context: FeedbackPromptContext) -> FeedbackProm
         faq=" | ".join(faq_entries),
         focus=focus_label or "all (seo, structure, clarity, style, evidence)",
         focus_categories=focus_label or "seo, structure, clarity, style, evidence",
-        selected_outline=", ".join(context.selected_outline) or "(all)",
+        sections_under_review_line=sections_under_review_line,
         draft_sections_json=draft_sections_json,
         note_excerpt=context.note_excerpt or "No source note provided.",
         schema_json=schema_json,

@@ -153,10 +153,11 @@ def test_feedback_dry_run_prints_prompt(body_path: Path, brief_path: Path) -> No
     assert "[REQUIRED JSON SCHEMA]" in result.stdout
 
 
-def test_feedback_section_range_selects_outline(
+def test_feedback_section_range_shows_sections_under_review(
     body_multi_section_path: Path,
     brief_path: Path,
 ) -> None:
+    """When --section is specified, prompt shows SectionsUnderReview with selected headings."""
     result = runner.invoke(
         app,
         [
@@ -172,7 +173,34 @@ def test_feedback_section_range_selects_outline(
     )
 
     assert result.exit_code == 0
-    assert "SelectedOutlineRange: Introduction to Observability, Logging Foundations" in result.stdout
+    # Renamed from SelectedOutlineRange to SectionsUnderReview
+    assert "SectionsUnderReview: Introduction to Observability, Logging Foundations" in result.stdout
+    # Explicit instruction for brief alignment checking
+    assert "Only evaluate outline_covered and outline_missing for these sections" in result.stdout
+
+
+def test_feedback_all_sections_omits_sections_under_review(
+    body_path: Path,
+    brief_path: Path,
+) -> None:
+    """When no --section is specified (all sections), SectionsUnderReview is omitted."""
+    result = runner.invoke(
+        app,
+        [
+            "feedback",
+            "--body",
+            str(body_path),
+            "--brief",
+            str(brief_path),
+            "--dry-run",
+        ],
+    )
+
+    assert result.exit_code == 0
+    # SectionsUnderReview should NOT appear when reviewing all sections
+    assert "SectionsUnderReview:" not in result.stdout
+    # The old name should also not appear
+    assert "SelectedOutlineRange:" not in result.stdout
 
 
 def test_feedback_focus_multiple_categories_limits_prompt(
