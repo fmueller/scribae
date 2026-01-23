@@ -19,6 +19,7 @@ from .language import LanguageMismatchError, LanguageResolutionError, ensure_lan
 from .llm import LLM_OUTPUT_RETRIES, LLM_TIMEOUT_SECONDS, OpenAISettings, apply_optional_settings, make_model
 from .project import ProjectConfig
 from .prompts.feedback import FEEDBACK_SYSTEM_PROMPT, FeedbackPromptBundle, build_feedback_prompt_bundle
+from .prompts.feedback_categories import CATEGORY_DEFINITIONS
 
 # Pattern to match emoji characters across common Unicode ranges
 _EMOJI_PATTERN = re.compile(
@@ -231,26 +232,18 @@ class FeedbackFocus(str):
     CLARITY = "clarity"
     STYLE = "style"
     EVIDENCE = "evidence"
-    ALL = "all"
 
-    @classmethod
-    def from_raw(cls, value: str) -> FeedbackFocus:
-        lowered = value.lower().strip()
-        allowed = {cls.SEO, cls.STRUCTURE, cls.CLARITY, cls.STYLE, cls.EVIDENCE}
-        if lowered not in allowed:
-            raise FeedbackValidationError("--focus must be seo, structure, clarity, style, or evidence.")
-        return cls(lowered)
+    ALLOWED: frozenset[str] = frozenset(CATEGORY_DEFINITIONS.keys())
 
     @classmethod
     def parse_list(cls, value: str) -> list[str]:
         parts = [item.strip() for item in value.split(",") if item.strip()]
         if not parts:
             raise FeedbackValidationError("--focus must include at least one category.")
-        allowed = {cls.SEO, cls.STRUCTURE, cls.CLARITY, cls.STYLE, cls.EVIDENCE}
         normalized: list[str] = []
         for part in parts:
             lowered = part.lower()
-            if lowered not in allowed:
+            if lowered not in cls.ALLOWED:
                 raise FeedbackValidationError("--focus must be seo, structure, clarity, style, or evidence.")
             if lowered not in normalized:
                 normalized.append(lowered)
