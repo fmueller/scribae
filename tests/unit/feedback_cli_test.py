@@ -198,7 +198,10 @@ def test_feedback_focus_multiple_categories_limits_prompt(
     assert "Focus: seo, clarity" in result.stdout
     assert "In-scope categories: seo, clarity" in result.stdout
     assert "Critical override: Always include high severity issues from any category." in result.stdout
+    # Verify category definitions are limited to selected categories
     assert "- structure:" not in result.stdout
+    # Verify JSON schema category enum only lists selected categories + "other" for critical overrides
+    assert '"category": "seo|clarity|other"' in result.stdout
 
 
 def test_feedback_passes_seed_and_top_p(

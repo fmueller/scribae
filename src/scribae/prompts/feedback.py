@@ -127,6 +127,8 @@ def build_feedback_prompt_bundle(context: FeedbackPromptContext) -> FeedbackProm
     focus_label = ", ".join(focus_categories)
     project_keywords = ", ".join(context.project.get("keywords") or []) or "none"
     faq_entries = [f"{item.question} — {item.answer}" for item in context.brief.faq]
+    # Build category enum for schema: include selected categories + "other" for critical overrides
+    category_enum = "|".join(focus_categories + ["other"])
     schema_json = json.dumps(
         {
             "summary": {"issues": ["string"], "strengths": ["string"]},
@@ -149,7 +151,7 @@ def build_feedback_prompt_bundle(context: FeedbackPromptContext) -> FeedbackProm
             "findings": [
                 {
                     "severity": "low|medium|high",
-                    "category": "seo|structure|clarity|style|evidence|other",
+                    "category": category_enum,
                     "message": "string",
                     "location": {"heading": "string", "paragraph_index": 1},
                 }
