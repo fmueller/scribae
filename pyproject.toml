@@ -105,7 +105,7 @@ disallow_untyped_defs = true
 warn_unused_ignores = true
 
 [[tool.mypy.overrides]]
-module = ["frontmatter", "yaml", "tomli"]
+module = ["frontmatter", "yaml", "tomli", "torch"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]
