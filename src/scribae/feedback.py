@@ -244,7 +244,8 @@ class FeedbackFocus(str):
         for part in parts:
             lowered = part.lower()
             if lowered not in cls.ALLOWED:
-                raise FeedbackValidationError("--focus must be seo, structure, clarity, style, or evidence.")
+                allowed_list = ", ".join(sorted(cls.ALLOWED))
+                raise FeedbackValidationError(f"--focus must be one of: {allowed_list}.")
             if lowered not in normalized:
                 normalized.append(lowered)
         return normalized
