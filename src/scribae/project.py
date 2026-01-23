@@ -86,9 +86,7 @@ def _resolve_project_path(name: str, *, base_dir: Path | None = None) -> Path:
         if resolved.exists():
             return resolved
 
-    raise FileNotFoundError(
-        f"Project config {search_dir / f'{name}.yaml'} or {search_dir / f'{name}.yml'} not found"
-    )
+    raise FileNotFoundError(f"Project config {search_dir / f'{name}.yaml'} or {search_dir / f'{name}.yml'} not found")
 
 
 def _merge_with_defaults(data: Mapping[str, Any]) -> ProjectConfig:

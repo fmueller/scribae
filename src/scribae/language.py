@@ -106,8 +106,7 @@ def ensure_language_output(
 
 def _append_language_correction(prompt: str, expected_language: str) -> str:
     correction = (
-        "\n\n[LANGUAGE CORRECTION]\n"
-        f"Regenerate the full response strictly in language code '{expected_language}'."
+        f"\n\n[LANGUAGE CORRECTION]\nRegenerate the full response strictly in language code '{expected_language}'."
     )
     return f"{prompt}{correction}"
 

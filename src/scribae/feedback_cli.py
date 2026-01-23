@@ -53,7 +53,7 @@ def feedback_command(
     focus: str | None = typer.Option(  # noqa: B008
         None,
         "--focus",
-        help="Narrow the review scope: seo|structure|clarity|style|evidence.",
+        help="Narrow the review scope (comma-separated): seo|structure|clarity|style|evidence.",
     ),
     output_format: str = typer.Option(  # noqa: B008
         FeedbackFormat.MARKDOWN,
@@ -187,7 +187,7 @@ def feedback_command(
     focus_value = None
     if focus:
         try:
-            focus_value = str(FeedbackFocus.from_raw(focus))
+            focus_value = FeedbackFocus.parse_list(focus)
         except FeedbackValidationError as exc:
             typer.secho(str(exc), err=True, fg=typer.colors.RED)
             raise typer.Exit(exc.exit_code) from exc

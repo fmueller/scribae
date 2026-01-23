@@ -35,8 +35,9 @@ class OpenAISettings:
         os.environ["OPENAI_API_KEY"] = self.api_key
 
 
-def make_model(model_name: str, *, model_settings: ModelSettings,
-               settings: OpenAISettings | None = None) -> OpenAIChatModel:
+def make_model(
+    model_name: str, *, model_settings: ModelSettings, settings: OpenAISettings | None = None
+) -> OpenAIChatModel:
     """Return an OpenAI-compatible model configured for local/remote endpoints."""
     resolved_settings = settings or OpenAISettings.from_env()
     provider = OpenAIProvider(base_url=resolved_settings.base_url, api_key=resolved_settings.api_key)

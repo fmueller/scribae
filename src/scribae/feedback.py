@@ -19,25 +19,26 @@ from .language import LanguageMismatchError, LanguageResolutionError, ensure_lan
 from .llm import LLM_OUTPUT_RETRIES, LLM_TIMEOUT_SECONDS, OpenAISettings, apply_optional_settings, make_model
 from .project import ProjectConfig
 from .prompts.feedback import FEEDBACK_SYSTEM_PROMPT, FeedbackPromptBundle, build_feedback_prompt_bundle
+from .prompts.feedback_categories import CATEGORY_DEFINITIONS
 
 # Pattern to match emoji characters across common Unicode ranges
 _EMOJI_PATTERN = re.compile(
     "["
-    "\U0001F600-\U0001F64F"  # emoticons
-    "\U0001F300-\U0001F5FF"  # symbols & pictographs
-    "\U0001F680-\U0001F6FF"  # transport & map symbols
-    "\U0001F1E0-\U0001F1FF"  # flags
-    "\U00002700-\U000027BF"  # dingbats
-    "\U0001F900-\U0001F9FF"  # supplemental symbols & pictographs
-    "\U0001FA00-\U0001FA6F"  # chess symbols, extended-A
-    "\U0001FA70-\U0001FAFF"  # symbols & pictographs extended-A
-    "\U00002600-\U000026FF"  # misc symbols
-    "\U0001F700-\U0001F77F"  # alchemical symbols
-    "\U0001F780-\U0001F7FF"  # geometric shapes extended
-    "\U0001F800-\U0001F8FF"  # supplemental arrows-C
-    "\U0001F3FB-\U0001F3FF"  # skin tone modifiers
-    "\uFE0F"  # variation selector-16 (emoji presentation)
-    "\u200D"  # zero-width joiner (used in combined emojis)
+    "\U0001f600-\U0001f64f"  # emoticons
+    "\U0001f300-\U0001f5ff"  # symbols & pictographs
+    "\U0001f680-\U0001f6ff"  # transport & map symbols
+    "\U0001f1e0-\U0001f1ff"  # flags
+    "\U00002700-\U000027bf"  # dingbats
+    "\U0001f900-\U0001f9ff"  # supplemental symbols & pictographs
+    "\U0001fa00-\U0001fa6f"  # chess symbols, extended-A
+    "\U0001fa70-\U0001faff"  # symbols & pictographs extended-A
+    "\U00002600-\U000026ff"  # misc symbols
+    "\U0001f700-\U0001f77f"  # alchemical symbols
+    "\U0001f780-\U0001f7ff"  # geometric shapes extended
+    "\U0001f800-\U0001f8ff"  # supplemental arrows-C
+    "\U0001f3fb-\U0001f3ff"  # skin tone modifiers
+    "\ufe0f"  # variation selector-16 (emoji presentation)
+    "\u200d"  # zero-width joiner (used in combined emojis)
     "]+",
     flags=re.UNICODE,
 )
@@ -232,13 +233,22 @@ class FeedbackFocus(str):
     STYLE = "style"
     EVIDENCE = "evidence"
 
+    ALLOWED: frozenset[str] = frozenset(CATEGORY_DEFINITIONS.keys())
+
     @classmethod
-    def from_raw(cls, value: str) -> FeedbackFocus:
-        lowered = value.lower().strip()
-        allowed = {cls.SEO, cls.STRUCTURE, cls.CLARITY, cls.STYLE, cls.EVIDENCE}
-        if lowered not in allowed:
-            raise FeedbackValidationError("--focus must be seo, structure, clarity, style, or evidence.")
-        return cls(lowered)
+    def parse_list(cls, value: str) -> list[str]:
+        parts = [item.strip() for item in value.split(",") if item.strip()]
+        if not parts:
+            raise FeedbackValidationError("--focus must include at least one category.")
+        normalized: list[str] = []
+        for part in parts:
+            lowered = part.lower()
+            if lowered not in cls.ALLOWED:
+                allowed_list = ", ".join(sorted(cls.ALLOWED))
+                raise FeedbackValidationError(f"--focus must be one of: {allowed_list}.")
+            if lowered not in normalized:
+                normalized.append(lowered)
+        return normalized
 
 
 @dataclass(frozen=True)
@@ -263,7 +273,7 @@ class FeedbackContext:
     brief: SeoBrief
     project: ProjectConfig
     note: NoteDetails | None
-    focus: str | None
+    focus: list[str] | None
     language: str
     selected_outline: list[str]
     selected_sections: list[BodySection]
@@ -281,7 +291,7 @@ def prepare_context(
     project: ProjectConfig,
     note_path: Path | None = None,
     language: str | None = None,
-    focus: str | None = None,
+    focus: list[str] | None = None,
     section_range: tuple[int, int] | None = None,
     max_body_chars: int = 12000,
     max_note_chars: int = 6000,
@@ -360,9 +370,7 @@ def generate_feedback_report(
 
     resolved_settings = OpenAISettings.from_env()
     llm_agent: Agent[None, FeedbackReport] = (
-        agent
-        if agent is not None
-        else _create_agent(model_name, temperature=temperature, top_p=top_p, seed=seed)
+        agent if agent is not None else _create_agent(model_name, temperature=temperature, top_p=top_p, seed=seed)
     )
 
     _report(reporter, f"Calling model '{model_name}' via {resolved_settings.base_url}")
@@ -392,6 +400,8 @@ def generate_feedback_report(
     except Exception as exc:  # pragma: no cover - surfaced to CLI
         raise FeedbackLLMError(f"LLM request failed: {exc}") from exc
 
+    # Remap any out-of-scope categories to "other"
+    report = _normalize_finding_categories(report, context.focus)
     return report
 
 
@@ -437,9 +447,7 @@ def render_markdown(report: FeedbackReport) -> str:
     if report.findings:
         for finding in report.findings:
             location = _format_location(finding.location)
-            sections.append(
-                f"- **{finding.severity.upper()}** [{finding.category}] {finding.message}{location}"
-            )
+            sections.append(f"- **{finding.severity.upper()}** [{finding.category}] {finding.message}{location}")
     else:
         sections.extend(_render_list([]))
     sections.append("")
@@ -509,7 +517,7 @@ class _FeedbackPromptContext:
     note_excerpt: str | None
     project: ProjectConfig
     language: str
-    focus: str | None
+    focus: list[str] | None
     selected_outline: list[str]
     selected_sections: list[dict[str, str]]
 
@@ -554,6 +562,38 @@ def _feedback_language_text(report: FeedbackReport) -> str:
     checklist = " ".join(report.checklist)
     section_notes = " ".join([" ".join(item.notes) for item in report.section_notes])
     return "\n".join([issue_text, strength_text, findings, checklist, section_notes]).strip()
+
+
+def _normalize_finding_categories(report: FeedbackReport, focus: list[str] | None) -> FeedbackReport:
+    """Remap any finding categories outside the focus scope to 'other'.
+
+    If focus is None (all categories), no remapping is performed.
+    """
+    if focus is None:
+        return report
+
+    allowed = set(focus) | {"other"}
+    needs_remap = any(f.category not in allowed for f in report.findings)
+    if not needs_remap:
+        return report
+
+    remapped_findings = [
+        FeedbackFinding(
+            severity=f.severity,
+            category=f.category if f.category in allowed else "other",
+            message=f.message,
+            location=f.location,
+        )
+        for f in report.findings
+    ]
+    return FeedbackReport(
+        summary=report.summary,
+        brief_alignment=report.brief_alignment,
+        section_notes=report.section_notes,
+        evidence_gaps=report.evidence_gaps,
+        findings=remapped_findings,
+        checklist=report.checklist,
+    )
 
 
 def _load_body(body_path: Path, *, max_chars: int) -> BodyDocument:

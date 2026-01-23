@@ -92,9 +92,7 @@ def _debug_path(base: Path) -> Path:
 def _validate_language_code(value: str, *, label: str) -> None:
     cleaned = value.strip()
     if not cleaned or not _LANGUAGE_CODE_RE.fullmatch(cleaned):
-        raise typer.BadParameter(
-            f"{label} must be a language code like en or eng_Latn; received '{value}'."
-        )
+        raise typer.BadParameter(f"{label} must be a language code like en or eng_Latn; received '{value}'.")
 
 
 @translate_app.command()
@@ -102,10 +100,7 @@ def translate(
     src: str | None = typer.Option(  # noqa: B008
         None,
         "--src",
-        help=(
-            "Source language code, e.g. en or eng_Latn (NLLB). "
-            "Required unless provided via --project."
-        ),
+        help=("Source language code, e.g. en or eng_Latn (NLLB). Required unless provided via --project."),
     ),
     tgt: str = typer.Option(  # noqa: B008
         ...,

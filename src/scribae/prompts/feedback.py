@@ -8,6 +8,8 @@ from typing import Protocol
 from scribae.brief import SeoBrief
 from scribae.project import ProjectConfig
 
+from .feedback_categories import CATEGORY_DEFINITIONS
+
 
 class FeedbackPromptBody(Protocol):
     @property
@@ -31,7 +33,7 @@ class FeedbackPromptContext(Protocol):
     def language(self) -> str: ...
 
     @property
-    def focus(self) -> str | None: ...
+    def focus(self) -> list[str] | None: ...
 
     @property
     def selected_outline(self) -> list[str]: ...
@@ -61,30 +63,9 @@ FEEDBACK_SYSTEM_PROMPT = textwrap.dedent(
     - Be conservative about facts. If a claim is not supported by the provided note, flag it as needing evidence.
     - If a field is empty, output an empty array ([]) or empty string, not null.
     - Use consistent severity labels: low | medium | high.
-    - Use consistent categories (definitions below).
+    - ONLY use category values listed in the schema. DO NOT use any other category values.
+    - Use "other" for critical issues outside the focus scope.
     - Do not use emojis or special symbols in the output.
-
-    Categories:
-    - seo: keyword usage and density throughout content; placement in headings and early paragraphs;
-      primary/secondary keyword balance; search intent alignment; internal linking opportunities;
-      content depth for keyword competitiveness
-    - structure: heading hierarchy; section organization and alignment with brief outline; logical flow
-      and transitions between sections; paragraph length; intro/conclusion quality; scannability
-      (appropriate use of lists, subheadings for long sections)
-    - clarity: confusing sentences; ambiguous references; unexplained jargon or acronyms; readability;
-      sentence length variation; passive voice overuse; complex nested clauses; clear topic sentences
-    - style: tone consistency; voice; wordiness and filler phrases; audience appropriateness;
-      repetitive phrasing or word choices; clichés; formality level matching project tone; sentence
-      variety
-    - evidence: unsupported claims; missing citations; statements needing fact-checking; statistics
-      without sources; vague attributions ("studies show", "experts say"); claims contradicting the
-      source note; outdated information
-    - other: issues not fitting the above categories
-
-    Focus behavior:
-    - When Focus is "all", review the draft across all categories with balanced attention.
-    - When Focus is a specific category, prioritize findings in that category but still report
-      critical (high severity) issues from other categories.
     """
 ).strip()
 
@@ -108,7 +89,12 @@ FEEDBACK_USER_PROMPT_TEMPLATE = textwrap.dedent(
 
     [REVIEW SCOPE]
     Focus: {focus}
-    SelectedOutlineRange: {selected_outline}
+    Allowed categories: {focus_categories}, other
+    {sections_under_review_line}
+    Note: Use "other" only for high severity issues that fall outside the focused categories.
+
+    [FOCUS CATEGORY DEFINITIONS]
+    {category_definitions}
 
     [DRAFT SECTIONS]
     The following sections are extracted from the draft for review:
@@ -126,10 +112,31 @@ FEEDBACK_USER_PROMPT_TEMPLATE = textwrap.dedent(
 ).strip()
 
 
+def _format_category_definitions(categories: list[str]) -> str:
+    lines = [f"- {category}: {CATEGORY_DEFINITIONS[category]}" for category in categories]
+    return "\n".join(lines) if lines else "- none"
+
+
+def _format_sections_under_review(selected_outline: list[str], total_outline: int) -> str:
+    """Format SectionsUnderReview line, or empty string if all sections are selected."""
+    if len(selected_outline) >= total_outline:
+        # All sections selected - omit the line entirely (redundant with Outline above)
+        return ""
+    headings = ", ".join(selected_outline)
+    return (
+        f"SectionsUnderReview: {headings}\n"
+        "Only evaluate outline_covered and outline_missing for these sections.\n"
+    )
+
+
 def build_feedback_prompt_bundle(context: FeedbackPromptContext) -> FeedbackPromptBundle:
     """Render the system and user prompts for the feedback agent."""
+    focus_categories = context.focus or list(CATEGORY_DEFINITIONS.keys())
+    focus_label = ", ".join(focus_categories)
     project_keywords = ", ".join(context.project.get("keywords") or []) or "none"
     faq_entries = [f"{item.question} — {item.answer}" for item in context.brief.faq]
+    # Build category enum for schema: include selected categories + "other" for critical overrides
+    category_enum = "|".join(focus_categories + ["other"])
     schema_json = json.dumps(
         {
             "summary": {"issues": ["string"], "strengths": ["string"]},
@@ -152,7 +159,7 @@ def build_feedback_prompt_bundle(context: FeedbackPromptContext) -> FeedbackProm
             "findings": [
                 {
                     "severity": "low|medium|high",
-                    "category": "seo|structure|clarity|style|evidence|other",
+                    "category": category_enum,
                     "message": "string",
                     "location": {"heading": "string", "paragraph_index": 1},
                 }
@@ -163,6 +170,9 @@ def build_feedback_prompt_bundle(context: FeedbackPromptContext) -> FeedbackProm
         ensure_ascii=False,
     )
     draft_sections_json = json.dumps(context.selected_sections, indent=2, ensure_ascii=False)
+    sections_under_review_line = _format_sections_under_review(
+        context.selected_outline, len(context.brief.outline)
+    )
     prompt = FEEDBACK_USER_PROMPT_TEMPLATE.format(
         site_name=context.project["site_name"],
         domain=context.project["domain"],
@@ -176,11 +186,13 @@ def build_feedback_prompt_bundle(context: FeedbackPromptContext) -> FeedbackProm
         search_intent=context.brief.search_intent,
         outline=" | ".join(context.brief.outline),
         faq=" | ".join(faq_entries),
-        focus=context.focus or "all (seo, structure, clarity, style, evidence)",
-        selected_outline=", ".join(context.selected_outline) or "(all)",
+        focus=focus_label or "all (seo, structure, clarity, style, evidence)",
+        focus_categories=focus_label or "seo, structure, clarity, style, evidence",
+        sections_under_review_line=sections_under_review_line,
         draft_sections_json=draft_sections_json,
         note_excerpt=context.note_excerpt or "No source note provided.",
         schema_json=schema_json,
+        category_definitions=_format_category_definitions(focus_categories),
     )
     return FeedbackPromptBundle(system_prompt=FEEDBACK_SYSTEM_PROMPT, user_prompt=prompt)
 

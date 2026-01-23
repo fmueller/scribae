@@ -253,8 +253,7 @@ def generate_metadata(
 
     _report(
         reporter,
-        f"Calling model '{model_name}' via {resolved_settings.base_url}"
-        + (f" (reason: {reason})" if reason else ""),
+        f"Calling model '{model_name}' via {resolved_settings.base_url}" + (f" (reason: {reason})" if reason else ""),
     )
 
     try:

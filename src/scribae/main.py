@@ -25,6 +25,7 @@ __all__ = ["app", "main"]
 def app_callback() -> None:
     """Root Scribae CLI callback."""
 
+
 app.command("idea", help="Brainstorm article ideas from a note with project-aware guidance.")(idea_command)
 app.command(
     "brief",

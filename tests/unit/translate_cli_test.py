@@ -95,9 +95,7 @@ def stub_translation_components(monkeypatch: pytest.MonkeyPatch) -> dict[str, An
 
 def _patch_loader(monkeypatch: pytest.MonkeyPatch, projects_dir: Path) -> None:
     loader = project_module.load_project
-    monkeypatch.setattr(
-        "scribae.translate_cli.load_project", lambda name: loader(name, base_dir=projects_dir)
-    )
+    monkeypatch.setattr("scribae.translate_cli.load_project", lambda name: loader(name, base_dir=projects_dir))
 
 
 def test_translate_requires_src_without_project(
@@ -129,7 +127,7 @@ def test_translate_uses_project_defaults(
     projects_dir = tmp_path / "projects"
     projects_dir.mkdir()
     (projects_dir / "demo.yaml").write_text(
-        "language: fr\n" "tone: academic\n" "audience: researchers\n",
+        "language: fr\ntone: academic\naudience: researchers\n",
         encoding="utf-8",
     )
     _patch_loader(monkeypatch, projects_dir)
@@ -164,7 +162,7 @@ def test_translate_flags_override_project_defaults(
     projects_dir = tmp_path / "projects"
     projects_dir.mkdir()
     (projects_dir / "demo.yaml").write_text(
-        "language: fr\n" "tone: academic\n" "audience: researchers\n",
+        "language: fr\ntone: academic\naudience: researchers\n",
         encoding="utf-8",
     )
     _patch_loader(monkeypatch, projects_dir)

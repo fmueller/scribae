@@ -14,16 +14,12 @@ from scribae.language import (
 def test_resolve_language_prefers_flag_and_project_over_note() -> None:
     metadata = {"lang": "fr"}
 
-    resolved = resolve_output_language(
-        flag_language="de", project_language="es", metadata=metadata, text="bonjour"
-    )
+    resolved = resolve_output_language(flag_language="de", project_language="es", metadata=metadata, text="bonjour")
 
     assert resolved.language == "de"
     assert resolved.source == "flag"
 
-    project_first = resolve_output_language(
-        flag_language=None, project_language="es", metadata=metadata, text="hola"
-    )
+    project_first = resolve_output_language(flag_language=None, project_language="es", metadata=metadata, text="hola")
 
     assert project_first.language == "es"
     assert project_first.source == "project"
@@ -32,9 +28,7 @@ def test_resolve_language_prefers_flag_and_project_over_note() -> None:
 def test_resolve_language_uses_frontmatter_before_detection() -> None:
     metadata = {"language": "pt-BR"}
 
-    resolved = resolve_output_language(
-        flag_language=None, project_language="", metadata=metadata, text="conteudo"
-    )
+    resolved = resolve_output_language(flag_language=None, project_language="", metadata=metadata, text="conteudo")
 
     assert resolved.language == "pt-BR"
     assert resolved.source == "frontmatter"

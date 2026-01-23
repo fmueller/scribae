@@ -13,9 +13,7 @@ NLLB_LANGUAGE_MAP = {
     "pt": "por_Latn",
 }
 
-_NLLB_CODE_ALIASES = {
-    value.lower(): value for value in NLLB_LANGUAGE_MAP.values()
-} | {
+_NLLB_CODE_ALIASES = {value.lower(): value for value in NLLB_LANGUAGE_MAP.values()} | {
     value.lower().replace("_", "-"): value for value in NLLB_LANGUAGE_MAP.values()
 }
 
@@ -85,9 +83,7 @@ class ModelRegistry:
         if mapped:
             return mapped
         supported = ", ".join(sorted(NLLB_LANGUAGE_MAP))
-        raise ValueError(
-            f"Unsupported language code '{lang}' for NLLB fallback. Supported ISO codes: {supported}."
-        )
+        raise ValueError(f"Unsupported language code '{lang}' for NLLB fallback. Supported ISO codes: {supported}.")
 
     def nllb_spec(self) -> ModelSpec:
         return ModelSpec(

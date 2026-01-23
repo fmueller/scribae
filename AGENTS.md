@@ -11,14 +11,14 @@ Scribae is a CLI tool that transforms local Markdown notes into structured SEO c
 ## Quick Reference
 
 ```bash
-uv sync --locked --all-extras --dev   # Install dependencies
+uv sync --locked --all-extras --dev   # Required: install all dependencies including PyTorch
 uv run scribae --help                 # Run CLI
 uv run ruff check                     # Lint (auto-fix: --fix)
 uv run mypy                           # Type check
 uv run pytest                         # Run tests
 ```
 
-**Important:** Always run tests, mypy, and ruff at the end of your task and fix any issues.
+**Important:** The `--all-extras` flag is required for development (PyTorch needed for mypy). Always run tests, mypy, and ruff at the end of your task and fix any issues.
 
 ## Project Structure
 

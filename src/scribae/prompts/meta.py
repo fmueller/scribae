@@ -128,7 +128,7 @@ def render_brief_context(brief: SeoBrief | None) -> str:
         f"""\
         BriefTitle: {brief.title}
         PrimaryKeyword: {brief.primary_keyword}
-        SecondaryKeywords: {', '.join(brief.secondary_keywords)}
+        SecondaryKeywords: {", ".join(brief.secondary_keywords)}
         PlannedSearchIntent: {brief.search_intent}
         PlannedMetaDescription: {brief.meta_description}
         """
