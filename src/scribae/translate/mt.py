@@ -62,14 +62,14 @@ class MTTranslator:
 
     def _require_torch(self) -> ModuleType:
         try:
-            import torch
+            import torch  # type: ignore[import-not-found]
         except ImportError as exc:
             raise RuntimeError(
                 "Translation requires PyTorch. Install it with "
                 "`uv sync --extra translation` or "
                 "`uv sync --extra translation --index pytorch-cpu` (CPU-only)."
             ) from exc
-        return torch
+        return torch  # type: ignore[no-any-return]
 
     def prefetch(self, steps: Iterable[RouteStep]) -> None:
         """Warm translation pipelines for the provided route steps."""
