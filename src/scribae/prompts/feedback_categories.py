@@ -24,7 +24,7 @@ CATEGORY_DEFINITIONS: dict[str, str] = {
     ),
     "evidence": (
         "unsupported claims; missing citations; statements needing fact-checking; statistics "
-        "without sources; vague attributions (\"studies show\", \"experts say\"); claims contradicting the "
+        'without sources; vague attributions ("studies show", "experts say"); claims contradicting the '
         "source note; outdated information"
     ),
 }

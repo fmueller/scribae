@@ -55,9 +55,7 @@ class StubLLM:
                 faq_covered=[],
                 faq_missing=[],
             ),
-            section_notes=[
-                SectionNote(heading="Introduction to Observability", notes=["Add a concrete example."])
-            ],
+            section_notes=[SectionNote(heading="Introduction to Observability", notes=["Add a concrete example."])],
             evidence_gaps=["Add a source for claims about monitoring cadence."],
             findings=[
                 FeedbackFinding(
@@ -296,7 +294,7 @@ class TestStripEmojis:
         assert strip_emojis("🚀✅📚") == ""
 
     def test_preserves_special_characters(self) -> None:
-        assert strip_emojis("Use \"quotes\" and (parens)") == "Use \"quotes\" and (parens)"
+        assert strip_emojis('Use "quotes" and (parens)') == 'Use "quotes" and (parens)'
         assert strip_emojis("Items: a, b, c") == "Items: a, b, c"
 
     def test_strips_flag_emojis(self) -> None:

@@ -84,6 +84,7 @@ def build_user_prompt(
         style_rules=style_rules_text,
     )
 
+
 def build_faq_prompt(
     *,
     project: ProjectConfig,

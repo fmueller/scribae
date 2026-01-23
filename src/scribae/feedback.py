@@ -24,21 +24,21 @@ from .prompts.feedback_categories import CATEGORY_DEFINITIONS
 # Pattern to match emoji characters across common Unicode ranges
 _EMOJI_PATTERN = re.compile(
     "["
-    "\U0001F600-\U0001F64F"  # emoticons
-    "\U0001F300-\U0001F5FF"  # symbols & pictographs
-    "\U0001F680-\U0001F6FF"  # transport & map symbols
-    "\U0001F1E0-\U0001F1FF"  # flags
-    "\U00002700-\U000027BF"  # dingbats
-    "\U0001F900-\U0001F9FF"  # supplemental symbols & pictographs
-    "\U0001FA00-\U0001FA6F"  # chess symbols, extended-A
-    "\U0001FA70-\U0001FAFF"  # symbols & pictographs extended-A
-    "\U00002600-\U000026FF"  # misc symbols
-    "\U0001F700-\U0001F77F"  # alchemical symbols
-    "\U0001F780-\U0001F7FF"  # geometric shapes extended
-    "\U0001F800-\U0001F8FF"  # supplemental arrows-C
-    "\U0001F3FB-\U0001F3FF"  # skin tone modifiers
-    "\uFE0F"  # variation selector-16 (emoji presentation)
-    "\u200D"  # zero-width joiner (used in combined emojis)
+    "\U0001f600-\U0001f64f"  # emoticons
+    "\U0001f300-\U0001f5ff"  # symbols & pictographs
+    "\U0001f680-\U0001f6ff"  # transport & map symbols
+    "\U0001f1e0-\U0001f1ff"  # flags
+    "\U00002700-\U000027bf"  # dingbats
+    "\U0001f900-\U0001f9ff"  # supplemental symbols & pictographs
+    "\U0001fa00-\U0001fa6f"  # chess symbols, extended-A
+    "\U0001fa70-\U0001faff"  # symbols & pictographs extended-A
+    "\U00002600-\U000026ff"  # misc symbols
+    "\U0001f700-\U0001f77f"  # alchemical symbols
+    "\U0001f780-\U0001f7ff"  # geometric shapes extended
+    "\U0001f800-\U0001f8ff"  # supplemental arrows-C
+    "\U0001f3fb-\U0001f3ff"  # skin tone modifiers
+    "\ufe0f"  # variation selector-16 (emoji presentation)
+    "\u200d"  # zero-width joiner (used in combined emojis)
     "]+",
     flags=re.UNICODE,
 )
@@ -370,9 +370,7 @@ def generate_feedback_report(
 
     resolved_settings = OpenAISettings.from_env()
     llm_agent: Agent[None, FeedbackReport] = (
-        agent
-        if agent is not None
-        else _create_agent(model_name, temperature=temperature, top_p=top_p, seed=seed)
+        agent if agent is not None else _create_agent(model_name, temperature=temperature, top_p=top_p, seed=seed)
     )
 
     _report(reporter, f"Calling model '{model_name}' via {resolved_settings.base_url}")
@@ -449,9 +447,7 @@ def render_markdown(report: FeedbackReport) -> str:
     if report.findings:
         for finding in report.findings:
             location = _format_location(finding.location)
-            sections.append(
-                f"- **{finding.severity.upper()}** [{finding.category}] {finding.message}{location}"
-            )
+            sections.append(f"- **{finding.severity.upper()}** [{finding.category}] {finding.message}{location}")
     else:
         sections.extend(_render_list([]))
     sections.append("")

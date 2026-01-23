@@ -36,6 +36,7 @@ __all__ = [
     "save_prompt_artifacts",
 ]
 
+
 class BriefingError(Exception):
     """Raised when a brief cannot be generated."""
 
@@ -409,9 +410,7 @@ def _select_idea(
     if len(ideas.ideas) == 1:
         return ideas.ideas[0]
 
-    raise BriefValidationError(
-        "Select an idea with --idea (id or 1-based index), or set idea_id in note frontmatter."
-    )
+    raise BriefValidationError("Select an idea with --idea (id or 1-based index), or set idea_id in note frontmatter.")
 
 
 def _metadata_idea_id(metadata: dict[str, Any]) -> str | None:

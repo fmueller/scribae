@@ -79,9 +79,7 @@ class LLMPostEditor:
         trimmed_source, trimmed_mt = self._trim_inputs(source_text, mt_draft)
         prompt = self._build_prompt(trimmed_source, trimmed_mt, cfg, protected.placeholders.keys(), strict=strict)
         if self.max_chars is not None and len(prompt) > self.max_chars:
-            raise PostEditAborted(
-                f"post-edit prompt length {len(prompt)} exceeds limit of {self.max_chars} characters"
-            )
+            raise PostEditAborted(f"post-edit prompt length {len(prompt)} exceeds limit of {self.max_chars} characters")
         try:
             result = self._invoke(prompt, protected.placeholders.keys(), mt_draft, expected_lang=cfg.target_lang)
         except PostEditAborted:
@@ -337,9 +335,7 @@ class LLMPostEditor:
             "You are a post-editor improving a machine translation with minimal edits.\n"
             f"Source language: {cfg.source_lang}; Target language: {cfg.target_lang}.\n"
             f"Tone: register={tone.register}, audience={tone.audience}.\n"
-            "[CONSTRAINTS]\n"
-            + "\n".join(f"- {line}" for line in constraints)
-            + "\n[GLOSSARY]\n"
+            "[CONSTRAINTS]\n" + "\n".join(f"- {line}" for line in constraints) + "\n[GLOSSARY]\n"
             f"{glossary_section}\n"
             "[INPUT] SOURCE TEXT:\n"
             f"{source_text}\n\n"
@@ -377,10 +373,10 @@ class LLMPostEditor:
 
         # Patterns for Markdown prefixes we want to restore
         # Blockquote pattern: one or more '>' possibly with spaces
-        blockquote_pattern = re.compile(r'^((?:>\s*)+)')
+        blockquote_pattern = re.compile(r"^((?:>\s*)+)")
         # List marker pattern: optional whitespace + marker + space
         # Supports: -, *, +, and numbered lists like 1., 2., 10.
-        list_marker_pattern = re.compile(r'^(\s*(?:[-*+]|\d+\.)\s+)')
+        list_marker_pattern = re.compile(r"^(\s*(?:[-*+]|\d+\.)\s+)")
 
         restored_lines = []
         for i, edited_line in enumerate(edited_lines):
@@ -413,7 +409,7 @@ class LLMPostEditor:
 
             restored_lines.append(restored_line)
 
-        return '\n'.join(restored_lines)
+        return "\n".join(restored_lines)
 
     def _apply_glossary(self, text: str, glossary: dict[str, str]) -> str:
         translation = text

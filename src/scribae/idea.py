@@ -134,9 +134,7 @@ def prepare_context(
     )
     _report(reporter, "Prepared idea-generation prompt.")
 
-    return IdeaContext(
-        note=note, project=project, prompts=prompts, language=language_resolution.language
-    )
+    return IdeaContext(note=note, project=project, prompts=prompts, language=language_resolution.language)
 
 
 def generate_ideas(
@@ -216,9 +214,7 @@ def save_prompt_artifacts(
     prompt_path = destination / f"{stamp}-{slug}-ideas.prompt.txt"
     note_path = destination / f"{stamp}-note.txt"
 
-    prompt_payload = (
-        f"SYSTEM PROMPT:\n{context.prompts.system_prompt}\n\nUSER PROMPT:\n{context.prompts.user_prompt}\n"
-    )
+    prompt_payload = f"SYSTEM PROMPT:\n{context.prompts.system_prompt}\n\nUSER PROMPT:\n{context.prompts.user_prompt}\n"
     prompt_path.write_text(prompt_payload, encoding="utf-8")
     note_path.write_text(context.note.body, encoding="utf-8")
 
@@ -248,9 +244,7 @@ def _create_agent(
 
 
 def _idea_language_text(ideas: IdeaList) -> str:
-    return "\n".join(
-        f"{item.title} {item.description} {item.why}" for item in ideas.ideas
-    )
+    return "\n".join(f"{item.title} {item.description} {item.why}" for item in ideas.ideas)
 
 
 def _invoke_agent(agent: Agent[None, IdeaList], prompt: str, *, timeout_seconds: float) -> IdeaList:
