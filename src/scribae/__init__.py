@@ -61,6 +61,11 @@ def _resolve_version() -> str:
         resolved = _version_from_pyproject()
     git_suffix = _git_description()
     if git_suffix:
+        tag_prefix = f"v{resolved}"
+        if git_suffix.startswith(f"{tag_prefix}-"):
+            git_suffix = git_suffix[len(tag_prefix) + 1 :]
+        elif git_suffix == tag_prefix:
+            return resolved
         return f"{resolved}-{git_suffix}"
     return resolved
 
