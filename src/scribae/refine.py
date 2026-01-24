@@ -20,7 +20,7 @@ from .language import (
     ensure_language_output,
     resolve_output_language,
 )
-from .llm import LLM_TIMEOUT_SECONDS, apply_optional_settings, make_model
+from .llm import LLM_TIMEOUT_SECONDS, OpenAISettings, apply_optional_settings, make_model
 from .project import ProjectConfig
 from .prompts.refine import SYSTEM_PROMPT, build_changelog_prompt, build_user_prompt
 from .snippets import SnippetSelection, build_snippet_block
@@ -260,6 +260,9 @@ def refine_draft(
 
     output_sections: list[RefinedSection] = []
     refined_titles: list[str] = []
+
+    resolved_settings = OpenAISettings.from_env()
+    _report(reporter, f"Calling model '{model_name}' via {resolved_settings.base_url}")
 
     for section in refined_sections:
         draft_body = _find_draft_body(draft, index=section.index)
