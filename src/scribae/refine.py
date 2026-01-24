@@ -20,7 +20,7 @@ from .language import (
     ensure_language_output,
     resolve_output_language,
 )
-from .llm import LLM_TIMEOUT_SECONDS, make_model
+from .llm import LLM_TIMEOUT_SECONDS, apply_optional_settings, make_model
 from .project import ProjectConfig
 from .prompts.refine import SYSTEM_PROMPT, build_changelog_prompt, build_user_prompt
 from .snippets import SnippetSelection, build_snippet_block
@@ -232,6 +232,8 @@ def refine_draft(
     *,
     model_name: str,
     temperature: float,
+    top_p: float | None = None,
+    seed: int | None = None,
     intensity: RefinementIntensity,
     evidence_mode: EvidenceMode,
     section_range: tuple[int, int] | None = None,
@@ -290,7 +292,7 @@ def refine_draft(
                     prompt=prompt,
                     expected_language=context.language,
                     invoke=lambda prompt: _invoke_model(
-                        prompt, model_name=model_name, temperature=temperature
+                        prompt, model_name=model_name, temperature=temperature, top_p=top_p, seed=seed
                     ),
                     extract_text=lambda text: text,
                     reporter=reporter,
@@ -324,6 +326,8 @@ def refine_draft(
             context,
             model_name=model_name,
             temperature=temperature,
+            top_p=top_p,
+            seed=seed,
             refined_titles=refined_titles,
             apply_feedback=apply_feedback,
             reporter=reporter,
@@ -429,6 +433,8 @@ def generate_changelog(
     *,
     model_name: str,
     temperature: float,
+    top_p: float | None = None,
+    seed: int | None = None,
     refined_titles: Sequence[str],
     apply_feedback: bool,
     reporter: Reporter,
@@ -443,7 +449,7 @@ def generate_changelog(
     _report(reporter, "Generating changelog summary")
 
     try:
-        text = _invoke_model(prompt, model_name=model_name, temperature=temperature)
+        text = _invoke_model(prompt, model_name=model_name, temperature=temperature, top_p=top_p, seed=seed)
     except RefiningLLMError:
         raise
 
@@ -569,8 +575,16 @@ def _compose_heading(title: str, *, anchor: str | None) -> str:
     return f"## {title}".strip()
 
 
-def _invoke_model(prompt: str, *, model_name: str, temperature: float) -> str:
+def _invoke_model(
+    prompt: str,
+    *,
+    model_name: str,
+    temperature: float,
+    top_p: float | None = None,
+    seed: int | None = None,
+) -> str:
     model_settings = ModelSettings(temperature=temperature)
+    apply_optional_settings(model_settings, top_p=top_p, seed=seed)
     model = make_model(model_name, model_settings=model_settings)
     agent = Agent(model=model, instructions=SYSTEM_PROMPT)
 
