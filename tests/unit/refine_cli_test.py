@@ -247,3 +247,30 @@ def test_seed_and_top_p_passed_to_model(
     call = recording_llm.calls[0]
     assert call["seed"] == 42
     assert call["top_p"] == 0.9
+
+
+def test_verbose_logs_model_and_endpoint(
+    recording_llm: RecordingLLM,
+    draft_path: Path,
+    brief_path: Path,
+    note_path: Path,
+) -> None:
+    result = runner.invoke(
+        app,
+        [
+            "refine",
+            "--in",
+            str(draft_path),
+            "--brief",
+            str(brief_path),
+            "--note",
+            str(note_path),
+            "--section",
+            "1..1",
+            "--verbose",
+        ],
+    )
+
+    assert result.exit_code == 0, result.stderr
+    assert "Calling model" in result.stderr
+    assert "via http" in result.stderr
