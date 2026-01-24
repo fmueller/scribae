@@ -33,9 +33,25 @@ def draft_path(fixtures_dir: Path) -> Path:
 class RecordingLLM:
     def __init__(self) -> None:
         self.prompts: list[str] = []
+        self.calls: list[dict[str, object]] = []
 
-    def __call__(self, prompt: str, *, model_name: str, temperature: float) -> str:
+    def __call__(
+        self,
+        prompt: str,
+        *,
+        model_name: str,
+        temperature: float,
+        top_p: float | None = None,
+        seed: int | None = None,
+    ) -> str:
         self.prompts.append(prompt)
+        self.calls.append({
+            "prompt": prompt,
+            "model_name": model_name,
+            "temperature": temperature,
+            "top_p": top_p,
+            "seed": seed,
+        })
         if "Summarize the refinements applied to the draft." in prompt:
             return "- Tightened phrasing.\n- Applied feedback items."
         section_title = ""
@@ -199,3 +215,35 @@ def test_changelog_written(
     assert changelog_path.exists()
     changelog = changelog_path.read_text(encoding="utf-8")
     assert "Applied feedback items" in changelog
+
+
+def test_seed_and_top_p_passed_to_model(
+    recording_llm: RecordingLLM,
+    draft_path: Path,
+    brief_path: Path,
+    note_path: Path,
+) -> None:
+    result = runner.invoke(
+        app,
+        [
+            "refine",
+            "--in",
+            str(draft_path),
+            "--brief",
+            str(brief_path),
+            "--note",
+            str(note_path),
+            "--seed",
+            "42",
+            "--top-p",
+            "0.9",
+            "--section",
+            "1..1",
+        ],
+    )
+
+    assert result.exit_code == 0, result.stderr
+    assert len(recording_llm.calls) == 1
+    call = recording_llm.calls[0]
+    assert call["seed"] == 42
+    assert call["top_p"] == 0.9
