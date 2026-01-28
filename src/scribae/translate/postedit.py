@@ -1,11 +1,9 @@
 from __future__ import annotations
 
 import asyncio
-import importlib
-import os
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Literal, cast
+from typing import TYPE_CHECKING
 
 from pydantic_ai import Agent, NativeOutput, UnexpectedModelBehavior
 from pydantic_ai.settings import ModelSettings
@@ -202,79 +200,17 @@ class LLMPostEditor:
         return self._language_detector
 
     def _create_language_detector(self) -> Callable[[str], str]:
-        fast_langdetect = importlib.import_module("fast_langdetect")
-        config_kwargs: dict[str, Any] = {}
-        env_model_path = os.getenv("FASTTEXT_LID_MODEL")
-        if env_model_path:
-            config_kwargs["custom_model_path"] = env_model_path
+        from lingua import LanguageDetectorBuilder
 
-        config = fast_langdetect.LangDetectConfig(**config_kwargs) if config_kwargs else None
-        detector = fast_langdetect.LangDetector(config) if config else fast_langdetect.LangDetector()
+        detector = LanguageDetectorBuilder.from_all_languages().build()
 
         def _detect(text: str) -> str:
-            results = self._detect_labels(detector, text, model="auto", k=1, threshold=0.0)
-            if not results:
-                raise UnexpectedModelBehavior("language detector returned no labels")
-            lang = results[0].get("lang")
-            if not isinstance(lang, str) or not lang:
-                raise UnexpectedModelBehavior("language detector returned invalid language label")
-            return self._normalize_lang(lang)
+            result = detector.detect_language_of(text)
+            if result is None:
+                raise UnexpectedModelBehavior("lingua could not identify the language")
+            return self._normalize_lang(result.iso_code_639_1.name.lower())
 
         return _detect
-
-    def _detect_labels(
-        self,
-        detector: Any,
-        text: str,
-        *,
-        model: Literal["lite", "full", "auto"],
-        k: int,
-        threshold: float,
-    ) -> list[dict[str, object]]:
-        try:
-            return cast(list[dict[str, object]], detector.detect(text, model=model, k=k, threshold=threshold))
-        except ValueError as exc:
-            message = str(exc)
-            copy_error = "Unable to avoid copy while creating an array as requested"
-            if copy_error not in message:
-                raise
-            return self._detect_with_fasttext_copy_fix(detector, text, model=model, k=k, threshold=threshold)
-
-    def _detect_with_fasttext_copy_fix(
-        self,
-        detector: Any,
-        text: str,
-        *,
-        model: Literal["lite", "full", "auto"],
-        k: int,
-        threshold: float,
-    ) -> list[dict[str, object]]:
-        if model not in {"lite", "full", "auto"}:
-            raise UnexpectedModelBehavior(f"Invalid language detection model '{model}'")
-
-        if model == "lite":
-            ft_model = detector._get_model(low_memory=True, fallback_on_memory_error=False)
-        elif model == "full":
-            ft_model = detector._get_model(low_memory=False, fallback_on_memory_error=False)
-        else:
-            ft_model = detector._get_model(low_memory=False, fallback_on_memory_error=True)
-
-        processed = detector._preprocess_text(text)
-        normalized = detector._normalize_text(processed, detector.config.normalize_input)
-        if "\n" in normalized:
-            raise UnexpectedModelBehavior("language detection input contains newline characters")
-
-        raw_predictor = getattr(ft_model, "f", None)
-        if raw_predictor is None or not hasattr(raw_predictor, "predict"):
-            raise UnexpectedModelBehavior("fasttext model missing raw predictor for copy-safe language detection")
-
-        predictions = cast(list[tuple[float, str]], raw_predictor.predict(f"{normalized}\n", k, threshold, "strict"))
-        if not predictions:
-            return []
-
-        scored = [(str(label).replace("__label__", ""), min(float(score), 1.0)) for score, label in predictions]
-        scored.sort(key=lambda item: item[1], reverse=True)
-        return [{"lang": label, "score": score} for label, score in scored]
 
     def _leading_markdown_marker(self, line: str) -> str:
         """Return the Markdown prefix (blockquote, list, heading) if present."""
