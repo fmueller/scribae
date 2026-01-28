@@ -26,7 +26,7 @@ from scribae.translate import (
 
 translate_app = typer.Typer()
 
-_LIBRARY_LOGGERS = ("transformers", "huggingface_hub", "sentencepiece", "fasttext", "fast_langdetect")
+_LIBRARY_LOGGERS = ("transformers", "huggingface_hub", "sentencepiece")
 _LANGUAGE_CODE_RE = re.compile(r"^[A-Za-z]{2,3}$|^[A-Za-z]{3}[-_][A-Za-z]{4}$")
 
 
@@ -58,22 +58,6 @@ def _configure_library_logging() -> None:
     except Exception:
         pass
 
-    try:
-        import fast_langdetect.infer as fast_langdetect_infer  # type: ignore[import-untyped]
-        import robust_downloader  # type: ignore[import-untyped]
-
-        original_download = robust_downloader.download
-        if getattr(original_download, "__name__", "") != "quiet_download":
-
-            def quiet_download(*args: Any, **kwargs: Any) -> None:
-                kwargs.setdefault("show_progress", False)
-                kwargs.setdefault("logging_level", logging.ERROR)
-                original_download(*args, **kwargs)
-
-            robust_downloader.download = quiet_download
-            fast_langdetect_infer.download = quiet_download
-    except Exception:
-        pass
 
 
 def _load_glossary(path: Path | None) -> dict[str, str]:

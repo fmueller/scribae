@@ -3,8 +3,7 @@
 from __future__ import annotations
 
 import asyncio
-from pathlib import Path
-from typing import Any, cast
+from typing import cast
 
 import pytest
 from pydantic_ai import Agent, UnexpectedModelBehavior
@@ -251,85 +250,38 @@ class TestPostEditOutputValidator:
         with pytest.raises(UnexpectedModelBehavior):
             validator("Bonjour tout le monde")
 
-    def test_language_detection_uses_fast_langdetect(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-        model_path = tmp_path / "lid.176.bin"
+    def test_language_detection_uses_lingua(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        import sys
+        import types
+
         posteditor = LLMPostEditor(create_agent=False, language_detector=None)
-        monkeypatch.setenv("FASTTEXT_LID_MODEL", str(model_path))
+        captured: dict[str, object] = {}
 
-        captured: dict[str, Any] = {}
+        class FakeIsoCode:
+            name = "DE"
 
-        class FakeConfig:
-            def __init__(self, **kwargs: object) -> None:
-                captured["config_kwargs"] = kwargs
+        class FakeLanguageResult:
+            iso_code_639_1 = FakeIsoCode()
 
         class FakeDetector:
-            def __init__(self, config: FakeConfig | None = None) -> None:
-                captured["config"] = config
+            def detect_language_of(self, text: str) -> FakeLanguageResult:
+                captured["text"] = text
+                return FakeLanguageResult()
 
-            def detect(
-                self,
-                text: str,
-                model: str = "auto",
-                k: int = 1,
-                threshold: float = 0.0,
-            ) -> list[dict[str, object]]:
-                captured["detect_args"] = (text, model, k, threshold)
-                return [{"lang": "DE", "score": 0.9}]
+        class FakeBuilder:
+            @staticmethod
+            def from_all_languages() -> FakeBuilder:
+                return FakeBuilder()
 
-        class FakeModule:
-            LangDetectConfig = FakeConfig
-            LangDetector = FakeDetector
+            def build(self) -> FakeDetector:
+                return FakeDetector()
 
-        fake_module = FakeModule()
-        monkeypatch.setattr("scribae.translate.postedit.importlib.import_module", lambda name: fake_module)
+        fake_lingua = types.ModuleType("lingua")
+        fake_lingua.LanguageDetectorBuilder = FakeBuilder  # type: ignore[attr-defined]
+        monkeypatch.setitem(sys.modules, "lingua", fake_lingua)
 
         detector = posteditor._create_language_detector()
         lang = detector("Hallo Welt")
 
         assert lang == "de"
-        assert captured["config_kwargs"] == {"custom_model_path": str(model_path)}
-        assert captured["detect_args"][1:] == ("auto", 1, 0.0)
-
-    def test_language_detection_falls_back_on_numpy_copy_error(self) -> None:
-        posteditor = LLMPostEditor(create_agent=False, language_detector=None)
-
-        class FakeDetector:
-            config = type("Config", (), {"normalize_input": True})()
-
-            def __init__(self) -> None:
-                self.called = {"detect": 0, "predict": 0}
-
-            def detect(
-                self, text: str, model: str = "auto", k: int = 1, threshold: float = 0.0
-            ) -> list[dict[str, object]]:
-                self.called["detect"] += 1
-                raise ValueError("Unable to avoid copy while creating an array as requested.")
-
-            def _get_model(self, low_memory: bool, fallback_on_memory_error: bool) -> Any:
-                self.called["predict"] += 1
-
-                class RawPredictor:
-                    def __init__(self) -> None:
-                        class F:
-                            def predict(
-                                self_inner, text: str, k: int, threshold: float, mode: str
-                            ) -> list[tuple[float, str]]:
-                                return [(0.9, "__label__EN")]
-
-                        self.f = F()
-
-                return RawPredictor()
-
-            def _preprocess_text(self, text: str) -> str:
-                return text
-
-            def _normalize_text(self, text: str, normalize_input: bool) -> str:
-                return text
-
-        detector = FakeDetector()
-        results = posteditor._detect_labels(detector, "Hello", model="auto", k=1, threshold=0.0)
-
-        assert results[0]["lang"] == "EN"
-        assert results[0]["score"] == 0.9
-        assert detector.called["detect"] == 1
-        assert detector.called["predict"] == 1
+        assert captured["text"] == "Hallo Welt"

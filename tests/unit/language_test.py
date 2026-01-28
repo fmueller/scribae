@@ -95,56 +95,35 @@ def test_ensure_language_output_fails_after_second_mismatch() -> None:
         )
 
 
-def test_default_language_detector_handles_numpy_copy_error(monkeypatch: pytest.MonkeyPatch) -> None:
-    class Capture:
-        predict_args: tuple[str, int, float, str] | None = None
-        model_args: tuple[bool, bool] | None = None
+def test_default_language_detector_uses_lingua(monkeypatch: pytest.MonkeyPatch) -> None:
+    captured: dict[str, object] = {}
 
-    capture = Capture()
+    class FakeIsoCode:
+        name = "FR"
 
-    class FakeConfig:
-        normalize_input = True
-
-    class FakePredictor:
-        def predict(self, text: str, k: int, threshold: float, mode: str) -> list[tuple[float, str]]:
-            capture.predict_args = (text, k, threshold, mode)
-            return [(0.8, "__label__FR")]
-
-    class FakeModel:
-        def __init__(self) -> None:
-            self.f = FakePredictor()
+    class FakeLanguageResult:
+        iso_code_639_1 = FakeIsoCode()
 
     class FakeDetector:
-        config = FakeConfig()
+        def detect_language_of(self, text: str) -> FakeLanguageResult:
+            captured["text"] = text
+            return FakeLanguageResult()
 
-        def detect(
-            self,
-            text: str,
-            model: str = "auto",
-            k: int = 1,
-            threshold: float = 0.0,
-        ) -> list[dict[str, object]]:
-            raise ValueError("Unable to avoid copy while creating an array as requested.")
+    class FakeBuilder:
+        @staticmethod
+        def from_all_languages() -> "FakeBuilder":
+            return FakeBuilder()
 
-        def _get_model(self, low_memory: bool, fallback_on_memory_error: bool) -> FakeModel:
-            capture.model_args = (low_memory, fallback_on_memory_error)
-            return FakeModel()
+        def build(self) -> FakeDetector:
+            return FakeDetector()
 
-        def _preprocess_text(self, text: str) -> str:
-            return text
+    class FakeLinguaModule:
+        LanguageDetectorBuilder = FakeBuilder
 
-        def _normalize_text(self, text: str, normalize_input: bool) -> str:
-            return text
-
-    class FakeModule:
-        LangDetector = FakeDetector
-
-    monkeypatch.setitem(sys.modules, "fast_langdetect", FakeModule())
+    monkeypatch.setitem(sys.modules, "lingua", FakeLinguaModule())
 
     detector = language._default_language_detector()
     detected = detector("Bonjour le monde")
 
     assert detected == "fr"
-    assert capture.predict_args is not None
-    assert capture.predict_args[1:] == (1, 0.0, "strict")
-    assert capture.model_args == (False, True)
+    assert captured["text"] == "Bonjour le monde"
