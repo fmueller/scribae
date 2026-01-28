@@ -4,6 +4,7 @@ from pathlib import Path
 
 import typer
 
+from .cli_output import echo_info, is_quiet, secho_info
 from .llm import DEFAULT_MODEL_NAME
 from .meta import (
     ArticleMeta,
@@ -129,7 +130,7 @@ def meta_command(
     ),
 ) -> None:
     """CLI handler for `scribae meta`."""
-    reporter = (lambda msg: typer.secho(msg, err=True)) if verbose else None
+    reporter = (lambda msg: typer.secho(msg, err=True)) if verbose and not is_quiet() else None
 
     try:
         overwrite_mode = OverwriteMode.from_raw(overwrite)
@@ -154,7 +155,7 @@ def meta_command(
             typer.secho(str(exc), err=True, fg=typer.colors.RED)
             raise typer.Exit(5) from exc
         if not project_source:
-            typer.secho(
+            secho_info(
                 "No project provided; using default context (language=en, tone=neutral).",
                 err=True,
                 fg=typer.colors.YELLOW,
@@ -243,7 +244,7 @@ def _write_outputs(
         payload = render_json(meta)
         out.parent.mkdir(parents=True, exist_ok=True)
         out.write_text(payload + "\n", encoding="utf-8")
-        typer.echo(f"Wrote metadata JSON to {out}")
+        echo_info(f"Wrote metadata JSON to {out}")
 
     if fmt in (OutputFormat.FRONTMATTER, OutputFormat.BOTH):
         frontmatter_text, _ = render_frontmatter(
@@ -254,4 +255,4 @@ def _write_outputs(
         path = out if fmt == OutputFormat.FRONTMATTER else out.with_suffix(out.suffix + ".frontmatter.yaml")
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(frontmatter_text, encoding="utf-8")
-        typer.echo(f"Wrote frontmatter to {path}")
+        echo_info(f"Wrote frontmatter to {path}")

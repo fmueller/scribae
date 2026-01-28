@@ -26,6 +26,13 @@ __all__ = ["app", "main"]
 
 @app.callback(invoke_without_command=True)
 def app_callback(
+    ctx: typer.Context,
+    quiet: bool = typer.Option(  # noqa: B008
+        False,
+        "--quiet",
+        "-q",
+        help="Suppress non-essential output (only emit primary stdout responses).",
+    ),
     no_color: bool = typer.Option(  # noqa: B008
         False,
         "--no-color",
@@ -33,6 +40,7 @@ def app_callback(
     ),
 ) -> None:
     """Root Scribae CLI callback."""
+    ctx.obj = {"quiet": quiet}
     if no_color or "NO_COLOR" in os.environ:
         context = click.get_current_context(silent=True)
         if context is not None:

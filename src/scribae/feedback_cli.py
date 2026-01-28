@@ -4,6 +4,7 @@ from pathlib import Path
 
 import typer
 
+from .cli_output import echo_info, is_quiet, secho_info
 from .feedback import (
     FeedbackBriefError,
     FeedbackError,
@@ -140,7 +141,7 @@ def feedback_command(
       scribae feedback --body draft.md --brief brief.json --format json --out feedback.json
       scribae feedback --body draft.md --brief brief.json --section 1..3 --focus seo
     """
-    reporter = (lambda msg: typer.secho(msg, err=True)) if verbose else None
+    reporter = (lambda msg: typer.secho(msg, err=True)) if verbose and not is_quiet() else None
 
     try:
         fmt = FeedbackFormat.from_raw(output_format)
@@ -170,7 +171,7 @@ def feedback_command(
             typer.secho(str(exc), err=True, fg=typer.colors.RED)
             raise typer.Exit(5) from exc
         if not project_source:
-            typer.secho(
+            secho_info(
                 "No project provided; using default context (language=en, tone=neutral).",
                 err=True,
                 fg=typer.colors.YELLOW,
@@ -276,8 +277,8 @@ def _write_outputs(
     md_path.parent.mkdir(parents=True, exist_ok=True)
     md_path.write_text(md_payload, encoding="utf-8")
     json_path.write_text(json_payload + "\n", encoding="utf-8")
-    typer.echo(f"Wrote feedback Markdown to {md_path}")
-    typer.echo(f"Wrote feedback JSON to {json_path}")
+    echo_info(f"Wrote feedback Markdown to {md_path}")
+    echo_info(f"Wrote feedback JSON to {json_path}")
 
 
 def _write_single_output(payload: str, out: Path | None, *, label: str) -> None:
@@ -286,7 +287,7 @@ def _write_single_output(payload: str, out: Path | None, *, label: str) -> None:
         return
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(payload + ("" if payload.endswith("\n") else "\n"), encoding="utf-8")
-    typer.echo(f"Wrote {label} to {out}")
+    echo_info(f"Wrote {label} to {out}")
 
 
 __all__ = ["feedback_command"]
