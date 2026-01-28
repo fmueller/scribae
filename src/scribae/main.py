@@ -22,8 +22,17 @@ __all__ = ["app", "main"]
 
 
 @app.callback(invoke_without_command=True)
-def app_callback() -> None:
+def app_callback(
+    ctx: typer.Context,
+    quiet: bool = typer.Option(  # noqa: B008
+        False,
+        "--quiet",
+        "-q",
+        help="Suppress non-essential output (only emit primary stdout responses).",
+    ),
+) -> None:
     """Root Scribae CLI callback."""
+    ctx.obj = {"quiet": quiet}
 
 
 app.command("idea", help="Brainstorm article ideas from a note with project-aware guidance.")(idea_command)
