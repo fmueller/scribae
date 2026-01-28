@@ -4,6 +4,7 @@ from pathlib import Path
 
 import typer
 
+from .cli_output import echo_info, is_quiet, secho_info
 from .idea import IdeaError, generate_ideas, prepare_context, render_json, save_prompt_artifacts
 from .llm import DEFAULT_MODEL_NAME
 from .project import load_default_project, load_project
@@ -124,7 +125,7 @@ def idea_command(
 
     _validate_output_options(out, json_output, dry_run=dry_run)
 
-    reporter = (lambda msg: typer.secho(msg, err=True)) if verbose else None
+    reporter = (lambda msg: typer.secho(msg, err=True)) if verbose and not is_quiet() else None
 
     if project:
         try:
@@ -143,7 +144,7 @@ def idea_command(
             project_label = project_source
         else:
             project_label = "default"
-            typer.secho(
+            secho_info(
                 "No project provided; using default context (language=en, tone=neutral).",
                 err=True,
                 fg=typer.colors.YELLOW,
@@ -193,7 +194,7 @@ def idea_command(
     if out is not None:
         out.parent.mkdir(parents=True, exist_ok=True)
         out.write_text(json_payload + "\n", encoding="utf-8")
-        typer.echo(f"Wrote ideas to {out}")
+        echo_info(f"Wrote ideas to {out}")
         return
 
     typer.echo(json_payload)

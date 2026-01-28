@@ -11,6 +11,7 @@ from typing import Any
 import typer
 import yaml
 
+from scribae.cli_output import echo_info, is_quiet, secho_info
 from scribae.language import LanguageResolutionError, detect_language, normalize_language
 from scribae.llm import DEFAULT_MODEL_NAME
 from scribae.project import load_default_project, load_project
@@ -220,7 +221,7 @@ def translate(
     ),
 ) -> None:
     """Translate a Markdown file using offline MT + local post-edit."""
-    reporter = (lambda msg: typer.secho(msg, err=True)) if verbose else None
+    reporter = (lambda msg: typer.secho(msg, err=True)) if verbose and not is_quiet() else None
     _configure_library_logging()
 
     if input_path is None and not prefetch_only:
@@ -301,7 +302,7 @@ def translate(
             posteditor.prefetch_language_model()
     except Exception as exc:
         if not prefetch_only and "nllb" in cfg.mt_backend:
-            typer.secho(
+            secho_info(
                 "Primary MT model prefetch failed; falling back to NLLB.",
                 err=True,
                 fg=typer.colors.YELLOW,
@@ -318,9 +319,9 @@ def translate(
             raise typer.Exit(4) from exc
     if prefetch_only:
         if verbose:
-            typer.echo(f"Prefetch complete for {resolved_src}->{tgt}.")
+            echo_info(f"Prefetch complete for {resolved_src}->{tgt}.")
             if postedit:
-                typer.echo("Language detection model prefetched.")
+                echo_info("Language detection model prefetched.")
         return
 
     assert input_path is not None
@@ -331,10 +332,10 @@ def translate(
                 reporter("Starting language detection.")
             detected_src = detect_language(text)
     except LanguageResolutionError as exc:
-        typer.secho(f"Language detection failed: {exc}", err=True, fg=typer.colors.YELLOW)
+        secho_info(f"Language detection failed: {exc}", err=True, fg=typer.colors.YELLOW)
         detected_src = None
     if detected_src and normalize_language(detected_src) != normalize_language(resolved_src):
-        typer.secho(
+        secho_info(
             f"Warning: detected source language '{detected_src}' does not match --src '{resolved_src}'.",
             err=True,
             fg=typer.colors.YELLOW,
@@ -353,7 +354,7 @@ def translate(
     translated = pipeline.translate(text, cfg)
     if output_path:
         output_path.write_text(translated, encoding="utf-8")
-        typer.echo(f"Wrote translation to {output_path}")
+        echo_info(f"Wrote translation to {output_path}")
     else:
         typer.echo(translated)
 
@@ -364,7 +365,7 @@ def translate(
         }
         debug_path = _debug_path(output_path or input_path)
         debug_path.write_text(json.dumps(debug_payload, indent=2), encoding="utf-8")
-        typer.echo(f"Wrote debug report to {debug_path}")
+        echo_info(f"Wrote debug report to {debug_path}")
 
 
 translate_command = translate
