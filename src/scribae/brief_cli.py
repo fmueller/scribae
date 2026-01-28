@@ -7,6 +7,7 @@ import typer
 
 from . import brief
 from .brief import BriefingError
+from .cli_output import echo_info, is_quiet, secho_info
 from .llm import DEFAULT_MODEL_NAME
 from .project import load_default_project, load_project
 
@@ -178,7 +179,7 @@ def brief_command(
     if idea_all and save_prompt is not None:
         raise typer.BadParameter("--idea-all cannot be combined with --save-prompt.", param_hint="--idea-all")
 
-    reporter = (lambda msg: typer.secho(msg, err=True)) if verbose else None
+    reporter = (lambda msg: typer.secho(msg, err=True)) if verbose and not is_quiet() else None
 
     if project:
         try:
@@ -197,7 +198,7 @@ def brief_command(
             project_label = project_source
         else:
             project_label = "default"
-            typer.secho(
+            secho_info(
                 "No project provided; using default context (language=en, tone=neutral).",
                 err=True,
                 fg=typer.colors.YELLOW,
@@ -250,7 +251,7 @@ def brief_command(
             slug = _safe_slug(idea_item.id)
             output_path = out_dir_path / f"{idx:02d}-{slug}.json"
             output_path.write_text(json_payload + "\n", encoding="utf-8")
-            typer.echo(f"Wrote brief to {output_path}")
+            echo_info(f"Wrote brief to {output_path}")
         return
 
     try:
@@ -303,7 +304,7 @@ def brief_command(
     if out is not None:
         out.parent.mkdir(parents=True, exist_ok=True)
         out.write_text(json_payload + "\n", encoding="utf-8")
-        typer.echo(f"Wrote brief to {out}")
+        echo_info(f"Wrote brief to {out}")
         return
 
     typer.echo(json_payload)
