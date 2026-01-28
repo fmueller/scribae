@@ -188,6 +188,68 @@ def test_help_flag_outputs_help() -> None:
     assert "Scribae — turn local Markdown notes into ideas, SEO briefs" in result.stdout
 
 
+def test_color_output_includes_ansi_codes(monkeypatch: pytest.MonkeyPatch, note_file: Path, fake: Faker) -> None:
+    brief_obj = _fake_brief(fake)
+    monkeypatch.setattr("scribae.brief.generate_brief", lambda *_, **__: brief_obj)
+    monkeypatch.delenv("NO_COLOR", raising=False)
+
+    result = runner.invoke(
+        app,
+        [
+            "brief",
+            "--note",
+            str(note_file),
+            "--json",
+        ],
+        color=True,
+    )
+
+    assert result.exit_code == 0
+    assert "\x1b[" in result.stderr
+
+
+def test_no_color_flag_disables_ansi_codes(monkeypatch: pytest.MonkeyPatch, note_file: Path, fake: Faker) -> None:
+    brief_obj = _fake_brief(fake)
+    monkeypatch.setattr("scribae.brief.generate_brief", lambda *_, **__: brief_obj)
+    monkeypatch.delenv("NO_COLOR", raising=False)
+
+    result = runner.invoke(
+        app,
+        [
+            "--no-color",
+            "brief",
+            "--note",
+            str(note_file),
+            "--json",
+        ],
+        color=True,
+    )
+
+    assert result.exit_code == 0
+    assert "\x1b[" not in result.stderr
+
+
+def test_no_color_env_disables_ansi_codes(monkeypatch: pytest.MonkeyPatch, note_file: Path, fake: Faker) -> None:
+    brief_obj = _fake_brief(fake)
+    monkeypatch.setattr("scribae.brief.generate_brief", lambda *_, **__: brief_obj)
+    monkeypatch.delenv("NO_COLOR", raising=False)
+
+    result = runner.invoke(
+        app,
+        [
+            "brief",
+            "--note",
+            str(note_file),
+            "--json",
+        ],
+        color=True,
+        env={"NO_COLOR": "1"},
+    )
+
+    assert result.exit_code == 0
+    assert "\x1b[" not in result.stderr
+
+
 def test_brief_passes_seed_and_top_p(monkeypatch: pytest.MonkeyPatch, note_file: Path, fake: Faker) -> None:
     brief_obj = _fake_brief(fake)
     captured_kwargs: dict[str, object] = {}
