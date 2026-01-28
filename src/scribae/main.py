@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import os
+
+import click
 import typer
 
 from .brief_cli import brief_command
@@ -22,8 +25,18 @@ __all__ = ["app", "main"]
 
 
 @app.callback(invoke_without_command=True)
-def app_callback() -> None:
+def app_callback(
+    no_color: bool = typer.Option(  # noqa: B008
+        False,
+        "--no-color",
+        help="Disable colored output (or set NO_COLOR=1).",
+    ),
+) -> None:
     """Root Scribae CLI callback."""
+    if no_color or "NO_COLOR" in os.environ:
+        context = click.get_current_context(silent=True)
+        if context is not None:
+            context.color = False
 
 
 app.command("idea", help="Brainstorm article ideas from a note with project-aware guidance.")(idea_command)
