@@ -54,6 +54,7 @@ class RecordingLLM:
 def recording_llm(monkeypatch: pytest.MonkeyPatch) -> RecordingLLM:
     recorder = RecordingLLM()
     monkeypatch.setattr("scribae.write._invoke_model", recorder)
+    monkeypatch.setattr("scribae.language._default_language_detector", lambda: lambda _text: "en")
     return recorder
 
 
