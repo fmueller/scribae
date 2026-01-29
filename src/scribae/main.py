@@ -8,6 +8,7 @@ import typer
 from .brief_cli import brief_command
 from .feedback_cli import feedback_command
 from .idea_cli import idea_command
+from .init_cli import init_command
 from .meta_cli import meta_command
 from .translate_cli import translate_command
 from .version_cli import version_command
@@ -48,6 +49,7 @@ def app_callback(
 
 
 app.command("idea", help="Brainstorm article ideas from a note with project-aware guidance.")(idea_command)
+app.command("init", help="Create a scribae.yaml config via a guided questionnaire.")(init_command)
 app.command(
     "brief",
     help="Generate a validated SEO brief (keywords, outline, FAQ, metadata) from a note.",
