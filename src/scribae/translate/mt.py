@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterable
+import importlib
 from types import ModuleType
 from typing import TYPE_CHECKING, Any
 
@@ -62,12 +63,15 @@ class MTTranslator:
 
     def _require_torch(self) -> ModuleType:
         try:
-            import torch
-        except ImportError as exc:
+            torch = importlib.import_module("torch")
+        except ModuleNotFoundError as exc:
             raise RuntimeError(
                 "Translation requires PyTorch. Install it with "
-                "`uv sync --extra translation` or "
-                "`uv sync --extra translation --index pytorch-cpu` (CPU-only)."
+                "`uv sync --extra translation` (or "
+                "`uv sync --extra translation --index pytorch-cpu` for CPU-only). "
+                "If you installed Scribae via uvx or pipx, add the extra with "
+                "`uvx --from \"scribae[translation]\" scribae` or "
+                "`pipx inject scribae \"scribae[translation]\"`."
             ) from exc
         return torch
 
