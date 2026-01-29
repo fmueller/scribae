@@ -17,14 +17,28 @@ and LLMs via OpenAI-compatible APIs.
 
 ## Installation
 
+Run Scribae without installing it:
+
 ```bash
-pip install scribae
+uvx scribae --help
 ```
 
-Or with [pipx](https://pipx.pypa.io/) for isolated installation:
+Run with translation support enabled:
+
+```bash
+uvx "scribae[translation]" --help
+```
+
+Install it globally with an isolated environment:
 
 ```bash
 pipx install scribae
+```
+
+Or use pip directly:
+
+```bash
+pip install scribae
 ```
 
 ### Translation support
@@ -33,6 +47,12 @@ Translation uses PyTorch and Hugging Face Transformers. Install with the transla
 
 ```bash
 pip install scribae[translation]
+```
+
+Prefer a CPU-only PyTorch wheel with pipx:
+
+```bash
+pipx install "scribae[translation]" --pip-args="--index-url https://download.pytorch.org/whl/cpu"
 ```
 
 ## Prerequisites
