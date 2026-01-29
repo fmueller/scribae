@@ -257,8 +257,11 @@ def test_prefetch_shows_pytorch_error_not_huggingface_message() -> None:
         def _require_torch(self) -> None:  # type: ignore[override]
             raise RuntimeError(
                 "Translation requires PyTorch. Install it with "
-                "`uv sync --extra translation` or "
-                "`uv sync --extra translation --index pytorch-cpu` (CPU-only)."
+                "`uv sync --extra translation` (or "
+                "`uv sync --extra translation --index pytorch-cpu` for CPU-only). "
+                "If you installed Scribae via uvx or pipx, add the extra with "
+                "`uvx --from \"scribae[translation]\" scribae` or "
+                "`pipx inject scribae \"scribae[translation]\"`."
             )
 
     registry = ModelRegistry()
@@ -272,5 +275,7 @@ def test_prefetch_shows_pytorch_error_not_huggingface_message() -> None:
         # Should show the helpful PyTorch message, NOT the generic HuggingFace message
         assert "PyTorch" in str(exc)
         assert "uv sync" in str(exc)
+        assert "uvx" in str(exc)
+        assert "pipx" in str(exc)
         assert "HuggingFace" not in str(exc).lower()
         assert "credentials" not in str(exc).lower()
