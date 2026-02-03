@@ -29,6 +29,8 @@ Run with translation support enabled:
 uvx "scribae[translation]" --help
 ```
 
+> **Note:** `uvx` creates a temporary environment on each run. With the translation extra, this downloads PyTorch (~2GB) every time. For repeated use, install with pipx or pip instead.
+
 Install it globally with an isolated environment:
 
 ```bash
