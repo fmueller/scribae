@@ -4,6 +4,7 @@ import yaml
 from typer.testing import CliRunner
 
 from scribae.main import app
+from tests.conftest import strip_ansi
 
 runner = CliRunner()
 
@@ -88,5 +89,6 @@ def test_init_rejects_project_and_file_options() -> None:
     result = runner.invoke(app, ["init", "--project", "demo", "--file", "config.yaml"])
 
     assert result.exit_code != 0
-    assert "--project" in result.stderr
-    assert "--file" in result.stderr
+    stderr = strip_ansi(result.stderr)
+    assert "--project" in stderr
+    assert "--file" in stderr

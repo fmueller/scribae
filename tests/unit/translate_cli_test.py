@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 import os
-import re
 from pathlib import Path
 from typing import Any, cast
 
@@ -13,6 +12,7 @@ from scribae import project as project_module
 from scribae.main import app
 from scribae.translate import TranslationConfig
 from scribae.translate.markdown_segmenter import TextBlock
+from tests.conftest import strip_ansi
 
 runner = CliRunner()
 
@@ -332,7 +332,7 @@ def test_translate_requires_input_without_prefetch_only(
     )
 
     assert result.exit_code != 0
-    ansi_stripped = re.sub(r"\x1b\[[0-9;]*m", "", result.stderr)
+    ansi_stripped = strip_ansi(result.stderr)
     assert "--in is required unless --prefetch-only" in ansi_stripped
 
 
@@ -449,7 +449,7 @@ def test_translate_prefetch_reports_errors(
     )
 
     assert result.exit_code != 0
-    ansi_stripped = re.sub(r"\x1b\[[0-9;]*m", "", result.stderr)
+    ansi_stripped = strip_ansi(result.stderr)
     assert "prefetch failed" in ansi_stripped
 
 
@@ -474,7 +474,7 @@ def test_translate_warns_on_source_mismatch(
     )
 
     assert result.exit_code == 0
-    ansi_stripped = re.sub(r"\x1b\[[0-9;]*m", "", result.stderr)
+    ansi_stripped = strip_ansi(result.stderr)
     assert "detected source language 'fr' does not match --src 'en'" in ansi_stripped
 
 
@@ -496,7 +496,7 @@ def test_translate_rejects_invalid_language_codes(
     )
 
     assert result.exit_code != 0
-    ansi_stripped = re.sub(r"\x1b\[[0-9;]*m", "", result.stderr)
+    ansi_stripped = strip_ansi(result.stderr)
     assert "must be a language code like en or eng_Latn" in ansi_stripped
 
 
