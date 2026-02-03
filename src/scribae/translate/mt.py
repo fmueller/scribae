@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from collections.abc import Iterable
 import importlib
+from collections.abc import Iterable
 from types import ModuleType
 from typing import TYPE_CHECKING, Any
 
