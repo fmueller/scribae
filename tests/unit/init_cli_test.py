@@ -18,7 +18,7 @@ def _questionnaire_input() -> str:
             "friendly and practical",
             "seo, content strategy",
             "en",
-            "p, em, a",
+            "product-analytics, case-study, compliance",
         ]
     ) + "\n"
 
@@ -37,7 +37,17 @@ def test_init_writes_config_in_current_dir() -> None:
         assert payload["tone"] == "friendly and practical"
         assert payload["keywords"] == ["seo", "content strategy"]
         assert payload["language"] == "en"
-        assert payload["allowed_tags"] == ["p", "em", "a"]
+        assert payload["allowed_tags"] == ["product-analytics", "case-study", "compliance"]
+
+
+def test_init_prompts_allowed_tag_example() -> None:
+    with runner.isolated_filesystem():
+        result = runner.invoke(app, ["init"], input=_questionnaire_input())
+
+        assert result.exit_code == 0
+        output = strip_ansi(result.output)
+        assert "Allowed metadata tags" in output
+        assert "Example: product-analytics, case-study, compliance" in output
 
 
 def test_init_writes_config_in_project_dir() -> None:
