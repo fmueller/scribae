@@ -101,9 +101,9 @@ def _collect_project_config() -> ProjectConfig:
     )
 
     allowed_tags_raw = _prompt_text(
-        "Allowed HTML tags",
-        "Optional allowlist for HTML tags in generated content; leave blank for no restriction.",
-        "p, em, strong, a",
+        "Allowed metadata tags",
+        "Optional allowlist for metadata tags in generated content; leave blank for no restriction.",
+        "product-analytics, case-study, compliance",
         default="",
         show_default=False,
     )
