@@ -10,6 +10,7 @@ from .feedback_cli import feedback_command
 from .idea_cli import idea_command
 from .init_cli import init_command
 from .meta_cli import meta_command
+from .refine_cli import refine_command
 from .translate_cli import translate_command
 from .version_cli import version_command
 from .write_cli import write_command
@@ -59,6 +60,7 @@ app.command(
     "feedback",
     help="Review a draft against a brief to surface improvements without rewriting.",
 )(feedback_command)
+app.command("refine", help="Refine a draft using a validated SEO brief.")(refine_command)
 app.command("meta", help="Create publication metadata/frontmatter for a finished draft.")(meta_command)
 app.command("translate", help="Translate Markdown while preserving formatting (MT + post-edit).")(translate_command)
 app.command("version", help="Print the Scribae version.")(version_command)
