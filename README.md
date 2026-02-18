@@ -31,7 +31,13 @@ uvx "scribae[translation]" --help
 
 > **Note:** `uvx` creates a temporary environment on each run. With the translation extra, this downloads PyTorch (~2GB) every time. For repeated use, install with pipx or pip instead.
 
-Install it globally with an isolated environment:
+Install it globally with an isolated environment using `uv`:
+
+```bash
+uv tool install scribae
+```
+
+Or using `pipx`:
 
 ```bash
 pipx install scribae
@@ -111,14 +117,16 @@ Run `scribae --help` to see all commands and options.
 ## Core workflow
 
 ```
-idea → brief → write → meta → translate
+idea → brief → write → feedback → refine → meta → translate
 ```
 
 1. **idea** — Brainstorm article ideas from a note with project-aware guidance.
 2. **brief** — Generate a validated SEO brief (keywords, outline, FAQ, metadata).
 3. **write** — Produce an article draft using your note, project context, and brief.
-4. **meta** — Create publication metadata/frontmatter for a finished draft.
-5. **translate** — Translate Markdown using MT + LLM post-edit while preserving formatting.
+4. **feedback** — Review a draft against a brief and generate a focused improvement report.
+5. **refine** — Improve a draft against a brief while preserving intent and structure.
+6. **meta** — Create publication metadata/frontmatter for a finished draft.
+7. **translate** — Translate Markdown using MT + LLM post-edit while preserving formatting.
 
 ## Configuration
 

@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## 0.2.0 - 2026-02-18
 
 ### Added
 
@@ -14,8 +14,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Supports `--section` to limit review to specific outline sections
   - Supports `--focus` to narrow review scope (seo, structure, clarity, style, evidence)
   - Optional `--note` for grounding feedback with source material
-- `--seed` and `--top-p` CLI options for all LLM commands (`idea`, `brief`, `write`, `meta`, `feedback`) to control output reproducibility
+- `refine` command for improving draft quality against an SEO brief without fully rewriting content
+- `--seed` and `--top-p` CLI options for all LLM commands (`idea`, `brief`, `write`, `feedback`, `refine`, `meta`) to control output reproducibility
 - `--postedit-seed` and `--postedit-top-p` CLI options for the `translate` command's LLM post-edit pass
+
+### Changed
+
+- Switched language detection to `lingua-language-detector` for faster and more robust language checks
 
 ## 0.1.0 - 2025-12-29
 
