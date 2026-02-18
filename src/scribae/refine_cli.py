@@ -4,6 +4,7 @@ from pathlib import Path
 
 import typer
 
+from .cli_output import echo_info, is_quiet, secho_info
 from .llm import DEFAULT_MODEL_NAME
 from .project import load_default_project, load_project
 from .refine import (
@@ -143,7 +144,7 @@ def refine_command(
             param_hint="--dry-run",
         )
 
-    reporter = (lambda msg: typer.secho(msg, err=True)) if verbose else None
+    reporter = (lambda msg: typer.secho(msg, err=True)) if verbose and not is_quiet() else None
 
     if project:
         try:
@@ -158,7 +159,7 @@ def refine_command(
             typer.secho(str(exc), err=True, fg=typer.colors.RED)
             raise typer.Exit(5) from exc
         if not project_source:
-            typer.secho(
+            secho_info(
                 "No project provided; using default context (language=en, tone=neutral).",
                 err=True,
                 fg=typer.colors.YELLOW,
@@ -243,7 +244,7 @@ def refine_command(
         except OSError as exc:
             typer.secho(f"Unable to write changelog: {exc}", err=True, fg=typer.colors.RED)
             raise typer.Exit(3) from exc
-        typer.echo(f"Wrote changelog to {changelog_path}")
+        echo_info(f"Wrote changelog to {changelog_path}")
 
     if out_path is not None:
         out_path.parent.mkdir(parents=True, exist_ok=True)
@@ -252,7 +253,7 @@ def refine_command(
         except OSError as exc:
             typer.secho(f"Unable to write refined draft: {exc}", err=True, fg=typer.colors.RED)
             raise typer.Exit(3) from exc
-        typer.echo(f"Wrote refined draft to {out_path}")
+        echo_info(f"Wrote refined draft to {out_path}")
         return
 
     typer.echo(refined, nl=False)

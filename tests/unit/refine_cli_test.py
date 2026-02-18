@@ -274,3 +274,91 @@ def test_verbose_logs_model_and_endpoint(
     assert result.exit_code == 0, result.stderr
     assert "Calling model" in result.stderr
     assert "via http" in result.stderr
+
+
+def test_quiet_suppresses_no_project_warning(
+    recording_llm: RecordingLLM,
+    draft_path: Path,
+    brief_path: Path,
+) -> None:
+    result = runner.invoke(
+        app,
+        [
+            "--quiet",
+            "refine",
+            "--in",
+            str(draft_path),
+            "--brief",
+            str(brief_path),
+            "--section",
+            "1..1",
+        ],
+    )
+
+    assert result.exit_code == 0, result.stderr
+    assert result.stdout.strip()
+    assert result.stderr == ""
+
+
+def test_quiet_suppresses_file_write_confirmations(
+    recording_llm: RecordingLLM,
+    draft_path: Path,
+    brief_path: Path,
+    note_path: Path,
+    tmp_path: Path,
+) -> None:
+    out_path = tmp_path / "refined.md"
+    changelog_path = tmp_path / "changelog.md"
+
+    result = runner.invoke(
+        app,
+        [
+            "--quiet",
+            "refine",
+            "--in",
+            str(draft_path),
+            "--brief",
+            str(brief_path),
+            "--note",
+            str(note_path),
+            "--out",
+            str(out_path),
+            "--changelog",
+            str(changelog_path),
+        ],
+    )
+
+    assert result.exit_code == 0, result.stderr
+    assert out_path.exists()
+    assert changelog_path.exists()
+    assert "Wrote changelog" not in result.stdout
+    assert "Wrote refined draft" not in result.stdout
+    assert result.stderr == ""
+
+
+def test_quiet_suppresses_verbose_reporter(
+    recording_llm: RecordingLLM,
+    draft_path: Path,
+    brief_path: Path,
+    note_path: Path,
+) -> None:
+    result = runner.invoke(
+        app,
+        [
+            "--quiet",
+            "refine",
+            "--in",
+            str(draft_path),
+            "--brief",
+            str(brief_path),
+            "--note",
+            str(note_path),
+            "--section",
+            "1..1",
+            "--verbose",
+        ],
+    )
+
+    assert result.exit_code == 0, result.stderr
+    assert result.stdout.strip()
+    assert result.stderr == ""
