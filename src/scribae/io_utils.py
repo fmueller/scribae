@@ -1,14 +1,12 @@
 from __future__ import annotations
 
-from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 import frontmatter
 
-# Type alias for verbose output callbacks used across modules.
-Reporter = Callable[[str], None] | None
+from .common import Reporter
 
 
 @dataclass(frozen=True)

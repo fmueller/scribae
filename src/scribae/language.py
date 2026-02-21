@@ -4,6 +4,8 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from typing import Any
 
+from .common import report as _report
+
 
 class LanguageResolutionError(Exception):
     """Raised when the output language cannot be determined."""
@@ -172,11 +174,6 @@ def _clean_language(value: Any) -> str | None:
         return None
     cleaned = str(value).strip()
     return cleaned or None
-
-
-def _report(reporter: Callable[[str], None] | None, message: str) -> None:
-    if reporter:
-        reporter(message)
 
 
 __all__ = [
