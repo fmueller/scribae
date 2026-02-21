@@ -14,6 +14,7 @@ import yaml
 from scribae.cli_output import echo_info, is_quiet, secho_info
 from scribae.language import LanguageResolutionError, detect_language, normalize_language
 from scribae.llm import DEFAULT_MODEL_NAME
+from scribae.logging_config import setup_logging
 from scribae.project import load_default_project, load_project
 from scribae.translate import (
     LLMPostEditor,
@@ -205,6 +206,7 @@ def translate(
     ),
 ) -> None:
     """Translate a Markdown file using offline MT + local post-edit."""
+    setup_logging(verbose=verbose and not is_quiet())
     reporter = (lambda msg: typer.secho(msg, err=True)) if verbose and not is_quiet() else None
     _configure_library_logging()
 

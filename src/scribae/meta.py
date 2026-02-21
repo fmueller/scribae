@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
@@ -25,6 +26,8 @@ from .prompts.meta import (
     MetaPromptBundle,
     build_meta_prompt_bundle,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class MetaError(Exception):
@@ -237,6 +240,7 @@ def generate_metadata(
     language_detector: Callable[[str], str] | None = None,
 ) -> ArticleMeta:
     """Generate final article metadata, calling the LLM when needed."""
+    logger.debug("Generating metadata with overwrite mode '%s'", context.overwrite)
     prompts = prompts or build_prompt_bundle(context)
     needs_llm, reason = _needs_llm(context, force_llm_on_missing=force_llm_on_missing)
 
@@ -291,6 +295,7 @@ def generate_metadata(
         merged.reading_time = context.body.reading_time
     merged.tags = _apply_allowed_tags(merged.tags, context.project.get("allowed_tags"))
 
+    logger.debug("Metadata generation completed successfully")
     return merged
 
 

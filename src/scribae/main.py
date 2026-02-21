@@ -9,6 +9,7 @@ from .brief_cli import brief_command
 from .feedback_cli import feedback_command
 from .idea_cli import idea_command
 from .init_cli import init_command
+from .logging_config import setup_logging
 from .meta_cli import meta_command
 from .refine_cli import refine_command
 from .translate_cli import translate_command
@@ -42,6 +43,7 @@ def app_callback(
     ),
 ) -> None:
     """Root Scribae CLI callback."""
+    setup_logging()
     ctx.obj = {"quiet": quiet}
     if no_color or "NO_COLOR" in os.environ:
         context = click.get_current_context(silent=True)

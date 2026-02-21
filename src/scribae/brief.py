@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
@@ -18,6 +19,8 @@ from .language import LanguageMismatchError, LanguageResolutionError, ensure_lan
 from .llm import LLM_OUTPUT_RETRIES, LLM_TIMEOUT_SECONDS, OpenAISettings, apply_optional_settings, make_model
 from .project import ProjectConfig
 from .prompts.brief import SYSTEM_PROMPT, PromptBundle, build_prompt_bundle
+
+logger = logging.getLogger(__name__)
 
 __all__ = [
     # re-exports for tests and public API
@@ -233,6 +236,7 @@ def generate_brief(
     language_detector: Callable[[str], str] | None = None,
 ) -> SeoBrief:
     """Run the LLM call and return a validated SeoBrief."""
+    logger.debug("Generating brief with model '%s'", model_name)
     resolved_settings = settings or OpenAISettings.from_env()
     llm_agent: Agent[None, SeoBrief] = (
         _create_agent(model_name, resolved_settings, temperature=temperature, top_p=top_p, seed=seed)
@@ -273,6 +277,7 @@ def generate_brief(
         raise BriefLLMError(f"LLM request failed: {exc}") from exc
 
     report(reporter, "LLM call complete, structured brief validated.")
+    logger.debug("Brief generation completed successfully")
     return brief
 
 

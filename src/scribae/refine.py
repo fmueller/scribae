@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import re
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
@@ -26,6 +27,7 @@ from .project import ProjectConfig
 from .prompts.refine import SYSTEM_PROMPT, build_changelog_prompt, build_user_prompt
 from .snippets import SnippetSelection, build_snippet_block
 
+logger = logging.getLogger(__name__)
 
 class RefiningError(Exception):
     """Base class for refine command failures."""
@@ -244,6 +246,7 @@ def refine_draft(
     language_detector: Callable[[str], str] | None = None,
 ) -> tuple[str, str | None]:
     """Refine a draft and optionally return a changelog."""
+    logger.debug("Refining draft with model '%s'", model_name)
     draft = parse_draft(context.draft_text)
     outline = outline_sections(context.brief)
     refined_sections = _prepare_sections(draft, outline, preserve_anchors=preserve_anchors)
@@ -335,6 +338,7 @@ def refine_draft(
             reporter=reporter,
         )
 
+    logger.debug("Draft refinement completed successfully")
     return markdown, changelog_text
 
 

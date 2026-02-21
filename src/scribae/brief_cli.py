@@ -9,6 +9,7 @@ from . import brief
 from .brief import BriefingError
 from .cli_output import echo_info, is_quiet, secho_info
 from .llm import DEFAULT_MODEL_NAME
+from .logging_config import setup_logging
 from .project import load_default_project, load_project
 
 
@@ -170,6 +171,7 @@ def brief_command(
     ),
 ) -> None:
     """CLI handler for `scribae brief`."""
+    setup_logging(verbose=verbose and not is_quiet())
     _validate_output_options(out, json_output, dry_run=dry_run, idea_all=idea_all, out_dir=out_dir)
     if (idea or idea_all) and ideas is None:
         raise typer.BadParameter("--ideas is required when selecting ideas.", param_hint="--ideas")
