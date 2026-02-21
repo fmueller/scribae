@@ -28,12 +28,6 @@ class OpenAISettings:
         api_key = os.environ.get("OPENAI_API_KEY") or DEFAULT_API_KEY
         return cls(base_url=base_url, api_key=api_key)
 
-    def configure_environment(self) -> None:
-        """Configure environment variables expected by OpenAI-compatible clients."""
-        os.environ["OPENAI_BASE_URL"] = self.base_url
-        os.environ["OPENAI_API_BASE"] = self.base_url
-        os.environ["OPENAI_API_KEY"] = self.api_key
-
 
 def make_model(
     model_name: str, *, model_settings: ModelSettings, settings: OpenAISettings | None = None
