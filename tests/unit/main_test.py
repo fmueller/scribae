@@ -170,7 +170,7 @@ def test_brief_save_prompt_creates_files(
 ) -> None:
     brief_obj = _fake_brief(fake)
     monkeypatch.setattr("scribae.brief.generate_brief", lambda *_, **__: brief_obj)
-    monkeypatch.setattr("scribae.brief._current_timestamp", lambda: "20240101-120000")
+    monkeypatch.setattr("scribae.brief.current_timestamp", lambda: "20240101-120000")
 
     prompt_dir = tmp_path / "prompts"
 

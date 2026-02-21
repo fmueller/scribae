@@ -14,6 +14,7 @@ from pydantic_ai import Agent, NativeOutput, UnexpectedModelBehavior
 from pydantic_ai.settings import ModelSettings
 
 from .brief import SeoBrief
+from .common import report
 from .io_utils import NoteDetails, Reporter, load_note, truncate
 from .language import LanguageMismatchError, LanguageResolutionError, ensure_language_output, resolve_output_language
 from .llm import LLM_OUTPUT_RETRIES, LLM_TIMEOUT_SECONDS, OpenAISettings, apply_optional_settings, make_model
@@ -306,9 +307,9 @@ def prepare_context(
     brief = _load_brief(brief_path)
     note = _load_note(note_path, max_chars=max_note_chars) if note_path else None
 
-    _report(reporter, f"Loaded draft '{body.path.name}' and brief '{brief.title}'.")
+    report(reporter, f"Loaded draft '{body.path.name}' and brief '{brief.title}'.")
     if note is not None:
-        _report(reporter, f"Loaded source note '{note.title}'.")
+        report(reporter, f"Loaded source note '{note.title}'.")
 
     try:
         language_resolution = resolve_output_language(
@@ -321,7 +322,7 @@ def prepare_context(
     except LanguageResolutionError as exc:
         raise FeedbackValidationError(str(exc)) from exc
 
-    _report(
+    report(
         reporter,
         f"Resolved output language: {language_resolution.language} (source: {language_resolution.source})",
     )
@@ -373,10 +374,10 @@ def generate_feedback_report(
         agent if agent is not None else _create_agent(model_name, temperature=temperature, top_p=top_p, seed=seed)
     )
 
-    _report(reporter, f"Calling model '{model_name}' via {resolved_settings.base_url}")
+    report(reporter, f"Calling model '{model_name}' via {resolved_settings.base_url}")
 
     try:
-        report = cast(
+        result = cast(
             FeedbackReport,
             ensure_language_output(
                 prompt=prompts.user_prompt,
@@ -401,8 +402,8 @@ def generate_feedback_report(
         raise FeedbackLLMError(f"LLM request failed: {exc}") from exc
 
     # Remap any out-of-scope categories to "other"
-    report = _normalize_finding_categories(report, context.focus)
-    return report
+    result = _normalize_finding_categories(result, context.focus)
+    return result
 
 
 def render_json(report: FeedbackReport) -> str:
@@ -724,11 +725,6 @@ def _format_location(location: FeedbackLocation | None) -> str:
     if paragraph is not None:
         details.append(f"paragraph: {paragraph}")
     return f" ({'; '.join(details)})" if details else ""
-
-
-def _report(reporter: Reporter, message: str) -> None:
-    if reporter:
-        reporter(message)
 
 
 __all__ = [

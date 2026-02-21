@@ -101,7 +101,7 @@ def test_idea_save_prompt_creates_files(
 ) -> None:
     ideas = _fake_ideas(fake)
     monkeypatch.setattr("scribae.idea_cli.generate_ideas", lambda *_, **__: ideas)
-    monkeypatch.setattr("scribae.idea._current_timestamp", lambda: "20240101-120000")
+    monkeypatch.setattr("scribae.idea.current_timestamp", lambda: "20240101-120000")
 
     prompt_dir = tmp_path / "prompts"
 
