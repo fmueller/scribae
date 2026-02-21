@@ -142,16 +142,23 @@ def test_generate_brief_raises_validation_error_when_retries_exhausted(
     assert "schema" in str(excinfo.value)
 
 
-def test_configure_environment_sets_openai_environment(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_generate_brief_does_not_mutate_openai_environment(monkeypatch: pytest.MonkeyPatch, fake: Faker) -> None:
+    context = _briefing_context(fake)
+    brief_obj = SeoBrief(**_base_payload(fake))
+    monkeypatch.setattr("scribae.brief._invoke_agent", lambda *_, **__: brief_obj)
     for var in ("OPENAI_BASE_URL", "OPENAI_API_BASE", "OPENAI_API_KEY"):
         monkeypatch.delenv(var, raising=False)
 
     settings = OpenAISettings(base_url="https://example.com/v1", api_key="token")
-    settings.configure_environment()
+    generate_brief(
+        context,
+        model_name="gpt-4o-mini",
+        temperature=0.2,
+        settings=settings,
+    )
 
-    assert os.environ["OPENAI_BASE_URL"] == "https://example.com/v1"
-    assert os.environ["OPENAI_API_BASE"] == "https://example.com/v1"
-    assert os.environ["OPENAI_API_KEY"] == "token"
+    for var in ("OPENAI_BASE_URL", "OPENAI_API_BASE", "OPENAI_API_KEY"):
+        assert var not in os.environ
 
 
 def test_openai_settings_from_env_prefers_api_base(monkeypatch: pytest.MonkeyPatch) -> None:

@@ -380,7 +380,6 @@ class LLMPostEditor:
         seed: int | None = None,
     ) -> Agent[None, str] | None:
         settings = OpenAISettings.from_env()
-        settings.configure_environment()
         model_settings = ModelSettings(temperature=temperature)
         apply_optional_settings(model_settings, top_p=top_p, seed=seed)
         model = make_model(model_name, model_settings=model_settings, settings=settings)

@@ -230,8 +230,6 @@ def _create_agent(
     seed: int | None = None,
 ) -> Agent[None, IdeaList]:
     """Instantiate the Pydantic AI agent for generating ideas."""
-
-    settings.configure_environment()
     model_settings = ModelSettings(temperature=temperature)
     apply_optional_settings(model_settings, top_p=top_p, seed=seed)
     model = make_model(model_name, model_settings=model_settings, settings=settings)
