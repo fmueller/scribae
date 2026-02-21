@@ -453,6 +453,67 @@ def test_translate_prefetch_reports_errors(
     assert "prefetch failed" in ansi_stripped
 
 
+def test_translate_fallback_prefetch_handles_postedit_aborted(
+    monkeypatch: pytest.MonkeyPatch,
+    stub_translation_components: dict[str, Any],
+    input_markdown: Path,
+) -> None:
+    """The NLLB fallback path should catch PostEditAborted, not just RuntimeError."""
+    from scribae.translate.postedit import PostEditAborted
+
+    call_count = 0
+
+    def _raise(self: object, steps: list[object]) -> None:
+        nonlocal call_count
+        call_count += 1
+        if call_count == 1:
+            raise RuntimeError("primary prefetch failed")
+        raise PostEditAborted("fallback aborted")
+
+    monkeypatch.setattr("scribae.translate_cli.MTTranslator.prefetch", _raise)
+
+    result = runner.invoke(
+        app,
+        [
+            "translate",
+            "--src",
+            "en",
+            "--tgt",
+            "de",
+            "--in",
+            str(input_markdown),
+        ],
+    )
+
+    assert result.exit_code != 0
+    ansi_stripped = strip_ansi(result.stderr)
+    assert "fallback aborted" in ansi_stripped
+
+
+def test_translate_prefetch_does_not_swallow_unexpected_errors(
+    monkeypatch: pytest.MonkeyPatch,
+    stub_translation_components: dict[str, Any],
+) -> None:
+    def _raise(self: object, steps: list[object]) -> None:
+        raise ValueError("unexpected")
+
+    monkeypatch.setattr("scribae.translate_cli.MTTranslator.prefetch", _raise)
+
+    result = runner.invoke(
+        app,
+        [
+            "translate",
+            "--src",
+            "en",
+            "--tgt",
+            "de",
+            "--prefetch-only",
+        ],
+    )
+
+    assert isinstance(result.exception, ValueError)
+
+
 def test_translate_warns_on_source_mismatch(
     monkeypatch: pytest.MonkeyPatch,
     stub_translation_components: dict[str, Any],
