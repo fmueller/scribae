@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import re
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
@@ -26,6 +27,8 @@ from .llm import LLM_TIMEOUT_SECONDS, apply_optional_settings, make_model
 from .project import ProjectConfig
 from .prompts.write import SYSTEM_PROMPT, build_faq_prompt, build_user_prompt
 from .snippets import SnippetSelection, build_snippet_block
+
+logger = logging.getLogger(__name__)
 
 
 class WritingError(Exception):
@@ -228,6 +231,7 @@ def generate_article(
 ) -> str:
     """Generate the Markdown body for the requested sections."""
     sections = outline_sections(context.brief, section_range=section_range)
+    logger.debug("Generating article with %d sections", len(sections))
     if save_prompt_dir is not None:
         try:
             save_prompt_dir.mkdir(parents=True, exist_ok=True)
@@ -300,6 +304,7 @@ def generate_article(
                 faq_body,
             )
 
+    logger.debug("Article generation completed successfully")
     return article
 
 

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import re
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
@@ -20,6 +21,8 @@ from .llm import LLM_OUTPUT_RETRIES, LLM_TIMEOUT_SECONDS, OpenAISettings, apply_
 from .project import ProjectConfig
 from .prompts.feedback import FEEDBACK_SYSTEM_PROMPT, FeedbackPromptBundle, build_feedback_prompt_bundle
 from .prompts.feedback_categories import CATEGORY_DEFINITIONS
+
+logger = logging.getLogger(__name__)
 
 # Pattern to match emoji characters across common Unicode ranges
 _EMOJI_PATTERN = re.compile(
@@ -366,6 +369,7 @@ def generate_feedback_report(
     language_detector: Callable[[str], str] | None = None,
 ) -> FeedbackReport:
     """Generate the structured feedback report via the LLM."""
+    logger.debug("Generating feedback report with model '%s'", model_name)
     prompts = prompts or build_prompt_bundle(context)
 
     resolved_settings = OpenAISettings.from_env()
@@ -402,6 +406,7 @@ def generate_feedback_report(
 
     # Remap any out-of-scope categories to "other"
     report = _normalize_finding_categories(report, context.focus)
+    logger.debug("Feedback report generation completed successfully")
     return report
 
 

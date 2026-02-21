@@ -7,6 +7,7 @@ import typer
 from .cli_output import echo_info, is_quiet, secho_info
 from .idea import IdeaError, generate_ideas, prepare_context, render_json, save_prompt_artifacts
 from .llm import DEFAULT_MODEL_NAME
+from .logging_config import setup_logging
 from .project import load_default_project, load_project
 
 
@@ -122,7 +123,7 @@ def idea_command(
     ),
 ) -> None:
     """CLI handler for `scribae idea`."""
-
+    setup_logging(verbose=verbose and not is_quiet())
     _validate_output_options(out, json_output, dry_run=dry_run)
 
     reporter = (lambda msg: typer.secho(msg, err=True)) if verbose and not is_quiet() else None

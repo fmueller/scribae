@@ -6,6 +6,7 @@ import typer
 
 from .cli_output import echo_info, is_quiet, secho_info
 from .llm import DEFAULT_MODEL_NAME
+from .logging_config import setup_logging
 from .meta import (
     ArticleMeta,
     MetaBriefError,
@@ -130,6 +131,7 @@ def meta_command(
     ),
 ) -> None:
     """CLI handler for `scribae meta`."""
+    setup_logging(verbose=verbose and not is_quiet())
     reporter = (lambda msg: typer.secho(msg, err=True)) if verbose and not is_quiet() else None
 
     try:
