@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any
 
 import frontmatter
+import yaml
 
 from .common import Reporter
 
@@ -36,7 +37,7 @@ def load_note(note_path: Path, *, max_chars: int) -> NoteDetails:
         raise FileNotFoundError(f"Note file not found: {note_path}") from exc
     except OSError as exc:  # pragma: no cover - surfaced to CLI
         raise OSError(f"Unable to read note {note_path}: {exc}") from exc
-    except Exception as exc:  # pragma: no cover - parsing errors
+    except (yaml.YAMLError, TypeError, ValueError) as exc:  # pragma: no cover - parsing errors
         raise ValueError(f"Unable to parse note {note_path}: {exc}") from exc
 
     metadata = dict(post.metadata or {})

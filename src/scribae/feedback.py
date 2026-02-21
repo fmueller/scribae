@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any, Literal, cast
 
 import frontmatter
+import yaml
 from pydantic import BaseModel, ConfigDict, ValidationError, field_validator
 from pydantic_ai import Agent, NativeOutput, UnexpectedModelBehavior
 from pydantic_ai.settings import ModelSettings
@@ -604,7 +605,7 @@ def _load_body(body_path: Path, *, max_chars: int) -> BodyDocument:
         raise FeedbackFileError(f"Draft file not found: {body_path}") from exc
     except OSError as exc:  # pragma: no cover - surfaced by CLI
         raise FeedbackFileError(f"Unable to read draft: {exc}") from exc
-    except Exception as exc:  # pragma: no cover - parsing errors
+    except (yaml.YAMLError, TypeError, ValueError) as exc:  # pragma: no cover - parsing errors
         raise FeedbackFileError(f"Unable to parse draft {body_path}: {exc}") from exc
 
     metadata = dict(post.metadata or {})

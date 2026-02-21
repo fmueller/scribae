@@ -339,7 +339,7 @@ def _load_body(body_path: Path, *, max_chars: int) -> BodyDocument:
         raise MetaFileError(f"Body file not found: {body_path}") from exc
     except OSError as exc:  # pragma: no cover - surfaced by CLI
         raise MetaFileError(f"Unable to read body: {exc}") from exc
-    except Exception as exc:  # pragma: no cover - parsing errors
+    except (yaml.YAMLError, TypeError, ValueError) as exc:  # pragma: no cover - parsing errors
         raise MetaFileError(f"Unable to parse body {body_path}: {exc}") from exc
 
     metadata = dict(post.metadata or {})

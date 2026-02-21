@@ -133,7 +133,7 @@ def _detect_language(text: str, language_detector: Callable[[str], str] | None) 
         return normalize_language(detector(sample))
     except LanguageResolutionError:
         raise
-    except Exception as exc:
+    except (AttributeError, TypeError, ValueError, RuntimeError) as exc:
         raise LanguageResolutionError(f"Language detection failed: {exc}") from exc
 
 
@@ -145,7 +145,7 @@ def _default_language_detector() -> Callable[[str], str]:
 
     try:
         detector = LanguageDetectorBuilder.from_all_languages().build()
-    except Exception as exc:  # pragma: no cover - defensive fallback
+    except (AttributeError, TypeError, ValueError, RuntimeError) as exc:  # pragma: no cover - defensive fallback
         return _naive_detector(exc)
 
     def _detect(sample: str) -> str:

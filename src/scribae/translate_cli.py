@@ -24,6 +24,7 @@ from scribae.translate import (
     TranslationConfig,
     TranslationPipeline,
 )
+from scribae.translate.postedit import PostEditAborted
 
 translate_app = typer.Typer()
 
@@ -58,7 +59,6 @@ def _configure_library_logging() -> None:
             disable_bars()
     except Exception:
         pass
-
 
 
 def _load_glossary(path: Path | None) -> dict[str, str]:
@@ -284,7 +284,7 @@ def translate(
             if reporter:
                 reporter("Fetching post-edit language model...")
             posteditor.prefetch_language_model()
-    except Exception as exc:
+    except (PostEditAborted, RuntimeError) as exc:
         if not prefetch_only and "nllb" in cfg.mt_backend:
             secho_info(
                 "Primary MT model prefetch failed; falling back to NLLB.",
@@ -295,7 +295,7 @@ def translate(
             steps = registry.route(resolved_src, tgt, allow_pivot=False, backend=cfg.mt_backend)
             try:
                 mt.prefetch(steps)
-            except Exception as fallback_exc:
+            except (PostEditAborted, RuntimeError) as fallback_exc:
                 typer.secho(str(fallback_exc), err=True, fg=typer.colors.RED)
                 raise typer.Exit(4) from fallback_exc
         else:
