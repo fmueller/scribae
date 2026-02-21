@@ -13,6 +13,9 @@ from pydantic_ai import Agent
 from pydantic_ai.settings import ModelSettings
 
 from .brief import SeoBrief
+from .common import Reporter
+from .common import report as _report
+from .common import slugify as _slugify
 from .io_utils import NoteDetails, load_note
 from .language import (
     LanguageMismatchError,
@@ -24,8 +27,6 @@ from .llm import LLM_TIMEOUT_SECONDS, OpenAISettings, apply_optional_settings, m
 from .project import ProjectConfig
 from .prompts.refine import SYSTEM_PROMPT, build_changelog_prompt, build_user_prompt
 from .snippets import SnippetSelection, build_snippet_block
-
-Reporter = Callable[[str], None] | None
 
 
 class RefiningError(Exception):
@@ -514,9 +515,7 @@ def _prepare_sections(
         draft_section = draft.sections[index - 1]
         anchor = draft_section.anchor if preserve_anchors else None
         heading = _compose_heading(title, anchor=anchor)
-        refined_sections.append(
-            RefinedSection(index=index, title=title, heading=heading, body=draft_section.body)
-        )
+        refined_sections.append(RefinedSection(index=index, title=title, heading=heading, body=draft_section.body))
     if not refined_sections:
         raise RefiningValidationError("No outline sections selected.")
     return refined_sections
@@ -633,16 +632,6 @@ def _save_section_artifacts(directory: Path, section: RefinedSection, prompt: st
         response_path.write_text(response.strip() + "\n", encoding="utf-8")
     except OSError as exc:
         raise RefiningFileError(f"Unable to save prompt artifacts: {exc}") from exc
-
-
-def _slugify(value: str) -> str:
-    lowered = value.lower()
-    return re.sub(r"[^a-z0-9]+", "-", lowered).strip("-")
-
-
-def _report(reporter: Reporter, message: str) -> None:
-    if reporter:
-        reporter(message)
 
 
 __all__ = [

@@ -14,6 +14,8 @@ from pydantic_ai import Agent
 from pydantic_ai.settings import ModelSettings
 
 from .brief import SeoBrief
+from .common import report as _report
+from .common import slugify as _slugify
 from .io_utils import NoteDetails, Reporter, load_note
 from .language import (
     LanguageMismatchError,
@@ -498,16 +500,6 @@ def _save_section_artifacts(directory: Path, section: SectionSpec, prompt: str, 
         response_path.write_text(response.strip() + "\n", encoding="utf-8")
     except OSError as exc:
         raise WritingFileError(f"Unable to save prompt artifacts: {exc}") from exc
-
-
-def _slugify(value: str) -> str:
-    lowered = value.lower()
-    return re.sub(r"[^a-z0-9]+", "-", lowered).strip("-")
-
-
-def _report(reporter: Reporter, message: str) -> None:
-    if reporter:
-        reporter(message)
 
 
 __all__ = [

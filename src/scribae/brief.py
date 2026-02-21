@@ -2,10 +2,8 @@ from __future__ import annotations
 
 import asyncio
 import json
-import re
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import datetime
 from pathlib import Path
 from typing import Any, cast
 
@@ -13,6 +11,9 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_valida
 from pydantic_ai import Agent, NativeOutput, UnexpectedModelBehavior
 from pydantic_ai.settings import ModelSettings
 
+from .common import current_timestamp as _current_timestamp
+from .common import report as _report
+from .common import slugify as _slugify
 from .idea import Idea, IdeaList
 from .io_utils import NoteDetails, Reporter, load_note
 from .language import LanguageMismatchError, LanguageResolutionError, ensure_language_output, resolve_output_language
@@ -362,15 +363,6 @@ def _invoke_agent(agent: Agent[None, SeoBrief], prompt: str, *, timeout_seconds:
     return asyncio.run(asyncio.wait_for(_call(), timeout_seconds))
 
 
-def _current_timestamp() -> str:
-    return datetime.now().strftime("%Y%m%d-%H%M%S")
-
-
-def _slugify(value: str) -> str:
-    lowered = value.lower()
-    return re.sub(r"[^a-z0-9]+", "-", lowered).strip("-")
-
-
 def _brief_language_text(brief: SeoBrief) -> str:
     faq_text = "\n".join(f"{item.question} {item.answer}" for item in brief.faq)
     outline_text = "\n".join(brief.outline)
@@ -419,9 +411,3 @@ def _metadata_idea_id(metadata: dict[str, Any]) -> str | None:
         return None
     value = raw.strip() if isinstance(raw, str) else str(raw).strip()
     return value or None
-
-
-def _report(reporter: Reporter, message: str) -> None:
-    """Send verbose output when enabled."""
-    if reporter:
-        reporter(message)

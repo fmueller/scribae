@@ -14,6 +14,7 @@ from pydantic_ai import Agent, NativeOutput, UnexpectedModelBehavior
 from pydantic_ai.settings import ModelSettings
 
 from .brief import SeoBrief
+from .common import report as _report
 from .io_utils import NoteDetails, Reporter, load_note, truncate
 from .language import LanguageMismatchError, LanguageResolutionError, ensure_language_output, resolve_output_language
 from .llm import LLM_OUTPUT_RETRIES, LLM_TIMEOUT_SECONDS, OpenAISettings, apply_optional_settings, make_model
@@ -724,11 +725,6 @@ def _format_location(location: FeedbackLocation | None) -> str:
     if paragraph is not None:
         details.append(f"paragraph: {paragraph}")
     return f" ({'; '.join(details)})" if details else ""
-
-
-def _report(reporter: Reporter, message: str) -> None:
-    if reporter:
-        reporter(message)
 
 
 __all__ = [
