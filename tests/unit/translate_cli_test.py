@@ -453,6 +453,30 @@ def test_translate_prefetch_reports_errors(
     assert "prefetch failed" in ansi_stripped
 
 
+def test_translate_prefetch_does_not_swallow_unexpected_errors(
+    monkeypatch: pytest.MonkeyPatch,
+    stub_translation_components: dict[str, Any],
+) -> None:
+    def _raise(self: object, steps: list[object]) -> None:
+        raise ValueError("unexpected")
+
+    monkeypatch.setattr("scribae.translate_cli.MTTranslator.prefetch", _raise)
+
+    result = runner.invoke(
+        app,
+        [
+            "translate",
+            "--src",
+            "en",
+            "--tgt",
+            "de",
+            "--prefetch-only",
+        ],
+    )
+
+    assert isinstance(result.exception, ValueError)
+
+
 def test_translate_warns_on_source_mismatch(
     monkeypatch: pytest.MonkeyPatch,
     stub_translation_components: dict[str, Any],
