@@ -1,6 +1,11 @@
 from __future__ import annotations
 
-from scribae.io_utils import Reporter, truncate
+from pathlib import Path
+
+import pytest
+import yaml
+
+from scribae.io_utils import Reporter, load_note, truncate
 
 
 class TestTruncate:
@@ -76,3 +81,32 @@ class TestReporter:
         r2: Reporter = None
         assert callable(r1)
         assert r2 is None
+
+
+class TestLoadNoteErrors:
+    def test_load_note_wraps_value_error_as_parse_error(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        def _boom(_path: Path) -> None:
+            raise ValueError("invalid frontmatter")
+
+        monkeypatch.setattr("scribae.io_utils.frontmatter.load", _boom)
+
+        with pytest.raises(ValueError, match="Unable to parse note"):
+            load_note(Path("note.md"), max_chars=100)
+
+    def test_load_note_wraps_yaml_error_as_parse_error(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        def _boom(_path: Path) -> None:
+            raise yaml.YAMLError("bad yaml")
+
+        monkeypatch.setattr("scribae.io_utils.frontmatter.load", _boom)
+
+        with pytest.raises(ValueError, match="Unable to parse note"):
+            load_note(Path("note.md"), max_chars=100)
+
+    def test_load_note_does_not_mask_unexpected_runtime_errors(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        def _boom(_path: Path) -> None:
+            raise RuntimeError("unexpected parser failure")
+
+        monkeypatch.setattr("scribae.io_utils.frontmatter.load", _boom)
+
+        with pytest.raises(RuntimeError, match="unexpected parser failure"):
+            load_note(Path("note.md"), max_chars=100)
