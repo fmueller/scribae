@@ -23,6 +23,7 @@ from .feedback import (
     save_prompt_artifacts,
 )
 from .llm import DEFAULT_MODEL_NAME
+from .logging_config import setup_logging
 from .project import load_default_project, load_project
 
 
@@ -141,6 +142,7 @@ def feedback_command(
       scribae feedback --body draft.md --brief brief.json --format json --out feedback.json
       scribae feedback --body draft.md --brief brief.json --section 1..3 --focus seo
     """
+    setup_logging(verbose=verbose and not is_quiet())
     reporter = (lambda msg: typer.secho(msg, err=True)) if verbose and not is_quiet() else None
 
     try:

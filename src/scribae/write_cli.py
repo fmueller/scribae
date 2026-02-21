@@ -6,6 +6,7 @@ import typer
 
 from .cli_output import echo_info, is_quiet, secho_info
 from .llm import DEFAULT_MODEL_NAME
+from .logging_config import setup_logging
 from .project import load_default_project, load_project
 from .write import (
     EvidenceMode,
@@ -121,6 +122,7 @@ def write_command(
     ),
 ) -> None:
     """CLI handler for `scribae write`."""
+    setup_logging(verbose=verbose and not is_quiet())
     if dry_run and (out is not None or save_prompt is not None):
         raise typer.BadParameter("--dry-run cannot be combined with --out/--save-prompt.", param_hint="--dry-run")
 

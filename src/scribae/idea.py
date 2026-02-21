@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import re
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -24,6 +25,8 @@ from .llm import (
 )
 from .project import ProjectConfig
 from .prompts.idea import IDEA_SYSTEM_PROMPT, IdeaPromptBundle, build_idea_prompt_bundle
+
+logger = logging.getLogger(__name__)
 
 
 class IdeaError(Exception):
@@ -151,6 +154,7 @@ def generate_ideas(
     language_detector: Callable[[str], str] | None = None,
 ) -> IdeaList:
     """Run the LLM call and return validated ideas."""
+    logger.debug("Generating ideas with model '%s'", model_name)
 
     resolved_settings = settings or OpenAISettings.from_env()
     llm_agent: Agent[None, IdeaList] = (
@@ -189,6 +193,7 @@ def generate_ideas(
         raise IdeaLLMError(f"LLM request failed: {exc}") from exc
 
     _report(reporter, "LLM call complete, ideas validated.")
+    logger.debug("Idea generation completed successfully")
     return ideas
 
 

@@ -202,6 +202,21 @@ def test_version_command_outputs_version() -> None:
     assert result.stdout == f"scribae v{__version__}\n"
 
 
+def test_app_callback_initializes_logging(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls: list[dict[str, object]] = []
+
+    def _fake_setup_logging(**kwargs: object) -> object:
+        calls.append(dict(kwargs))
+        return object()
+
+    monkeypatch.setattr("scribae.main.setup_logging", _fake_setup_logging)
+
+    result = runner.invoke(app, ["version"])
+
+    assert result.exit_code == 0
+    assert calls == [{}]
+
+
 def test_help_flag_alias_outputs_help() -> None:
     result = runner.invoke(app, ["-h"])
 

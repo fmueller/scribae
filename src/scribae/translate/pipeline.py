@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
@@ -11,6 +12,8 @@ from .mt import MTTranslator
 from .postedit import LLMPostEditor, PostEditAborted, PostEditValidationError
 
 DebugCallback = Callable[[dict[str, Any]], None] | None
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -73,6 +76,7 @@ class TranslationPipeline:
         self._report(f"{prefix}: {message}")
 
     def translate(self, text: str, cfg: TranslationConfig) -> str:
+        logger.debug("Starting translation pipeline: %s -> %s", cfg.source_lang, cfg.target_lang)
         self._report(f"Starting translation: {cfg.source_lang} -> {cfg.target_lang}")
         self._report("Segmenting markdown into blocks...")
         blocks = self.segmenter.segment(text)
@@ -81,6 +85,7 @@ class TranslationPipeline:
         self._report("Reconstructing translated document...")
         result = self.segmenter.reconstruct(translated_blocks)
         self._report("Translation complete")
+        logger.debug("Translation pipeline completed")
         return result
 
     def translate_blocks(self, blocks: list[TextBlock], cfg: TranslationConfig) -> list[TextBlock]:
