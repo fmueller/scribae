@@ -13,6 +13,7 @@ from pydantic_ai import Agent
 from pydantic_ai.settings import ModelSettings
 
 from .brief import SeoBrief
+from .common import Reporter, report, slugify
 from .io_utils import NoteDetails, load_note
 from .language import (
     LanguageMismatchError,
@@ -24,8 +25,6 @@ from .llm import LLM_TIMEOUT_SECONDS, OpenAISettings, apply_optional_settings, m
 from .project import ProjectConfig
 from .prompts.refine import SYSTEM_PROMPT, build_changelog_prompt, build_user_prompt
 from .snippets import SnippetSelection, build_snippet_block
-
-Reporter = Callable[[str], None] | None
 
 
 class RefiningError(Exception):
@@ -153,7 +152,7 @@ def prepare_context(
 
     feedback = _load_feedback(feedback_path) if feedback_path else None
 
-    _report(reporter, f"Loaded draft '{draft_path.name}' and brief '{brief.title}'.")
+    report(reporter, f"Loaded draft '{draft_path.name}' and brief '{brief.title}'.")
 
     language_source_text = note.body if note else draft_text
     try:
@@ -167,7 +166,7 @@ def prepare_context(
     except LanguageResolutionError as exc:
         raise RefiningValidationError(str(exc)) from exc
 
-    _report(
+    report(
         reporter,
         f"Resolved output language: {language_resolution.language} (source: {language_resolution.source})",
     )
@@ -262,7 +261,7 @@ def refine_draft(
     refined_titles: list[str] = []
 
     resolved_settings = OpenAISettings.from_env()
-    _report(reporter, f"Calling model '{model_name}' via {resolved_settings.base_url}")
+    report(reporter, f"Calling model '{model_name}' via {resolved_settings.base_url}")
 
     for section in refined_sections:
         draft_body = _find_draft_body(draft, index=section.index)
@@ -285,7 +284,7 @@ def refine_draft(
             intensity=intensity,
             apply_feedback=apply_feedback,
         )
-        _report(reporter, f"Refining section {section.index}: {section.title}")
+        report(reporter, f"Refining section {section.index}: {section.title}")
 
         if evidence_mode.is_required and context.note is not None and snippets.matches == 0:
             body = "(no supporting evidence in the note)"
@@ -449,7 +448,7 @@ def generate_changelog(
         feedback=context.feedback,
         apply_feedback=apply_feedback,
     )
-    _report(reporter, "Generating changelog summary")
+    report(reporter, "Generating changelog summary")
 
     try:
         text = _invoke_model(prompt, model_name=model_name, temperature=temperature, top_p=top_p, seed=seed)
@@ -514,9 +513,7 @@ def _prepare_sections(
         draft_section = draft.sections[index - 1]
         anchor = draft_section.anchor if preserve_anchors else None
         heading = _compose_heading(title, anchor=anchor)
-        refined_sections.append(
-            RefinedSection(index=index, title=title, heading=heading, body=draft_section.body)
-        )
+        refined_sections.append(RefinedSection(index=index, title=title, heading=heading, body=draft_section.body))
     if not refined_sections:
         raise RefiningValidationError("No outline sections selected.")
     return refined_sections
@@ -624,7 +621,7 @@ def _sanitize_section(body: str) -> str:
 
 
 def _save_section_artifacts(directory: Path, section: RefinedSection, prompt: str, response: str) -> None:
-    slug = _slugify(section.title) or f"section-{section.index}"
+    slug = slugify(section.title) or f"section-{section.index}"
     prompt_path = directory / f"{section.index:02d}-{slug}.prompt.txt"
     response_path = directory / f"{section.index:02d}-{slug}.response.md"
     payload = f"SYSTEM PROMPT:\n{SYSTEM_PROMPT}\n\nUSER PROMPT:\n{prompt}\n"
@@ -633,16 +630,6 @@ def _save_section_artifacts(directory: Path, section: RefinedSection, prompt: st
         response_path.write_text(response.strip() + "\n", encoding="utf-8")
     except OSError as exc:
         raise RefiningFileError(f"Unable to save prompt artifacts: {exc}") from exc
-
-
-def _slugify(value: str) -> str:
-    lowered = value.lower()
-    return re.sub(r"[^a-z0-9]+", "-", lowered).strip("-")
-
-
-def _report(reporter: Reporter, message: str) -> None:
-    if reporter:
-        reporter(message)
 
 
 __all__ = [

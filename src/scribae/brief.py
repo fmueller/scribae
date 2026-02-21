@@ -2,10 +2,8 @@ from __future__ import annotations
 
 import asyncio
 import json
-import re
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import datetime
 from pathlib import Path
 from typing import Any, cast
 
@@ -13,6 +11,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_valida
 from pydantic_ai import Agent, NativeOutput, UnexpectedModelBehavior
 from pydantic_ai.settings import ModelSettings
 
+from .common import current_timestamp, report, slugify
 from .idea import Idea, IdeaList
 from .io_utils import NoteDetails, Reporter, load_note
 from .language import LanguageMismatchError, LanguageResolutionError, ensure_language_output, resolve_output_language
@@ -174,7 +173,7 @@ def prepare_context(
     except OSError as exc:  # pragma: no cover - surfaced by CLI
         raise BriefFileError(f"Unable to read note: {exc}") from exc
 
-    _report(reporter, f"Loaded note '{note.title}' from {note.path}")
+    report(reporter, f"Loaded note '{note.title}' from {note.path}")
 
     try:
         language_resolution = resolve_output_language(
@@ -187,7 +186,7 @@ def prepare_context(
     except LanguageResolutionError as exc:
         raise BriefValidationError(str(exc)) from exc
 
-    _report(
+    report(
         reporter,
         f"Resolved output language: {language_resolution.language} (source: {language_resolution.source})",
     )
@@ -200,7 +199,7 @@ def prepare_context(
             idea_selector=idea_selector,
             metadata=note.metadata,
         )
-        _report(reporter, f"Selected idea '{selected_idea.title}' (id={selected_idea.id}).")
+        report(reporter, f"Selected idea '{selected_idea.title}' (id={selected_idea.id}).")
 
     prompts = build_prompt_bundle(
         project=project,
@@ -209,7 +208,7 @@ def prepare_context(
         language=language_resolution.language,
         idea=selected_idea,
     )
-    _report(reporter, "Prepared structured prompt.")
+    report(reporter, "Prepared structured prompt.")
 
     return BriefingContext(
         note=note,
@@ -241,7 +240,7 @@ def generate_brief(
         else agent
     )
 
-    _report(
+    report(
         reporter,
         f"Calling model '{model_name}' via {resolved_settings.base_url}",
     )
@@ -273,7 +272,7 @@ def generate_brief(
     except Exception as exc:  # pragma: no cover - surfaced to CLI
         raise BriefLLMError(f"LLM request failed: {exc}") from exc
 
-    _report(reporter, "LLM call complete, structured brief validated.")
+    report(reporter, "LLM call complete, structured brief validated.")
     return brief
 
 
@@ -311,8 +310,8 @@ def save_prompt_artifacts(
 ) -> tuple[Path, Path]:
     """Persist the system prompt and truncated note for debugging."""
     destination.mkdir(parents=True, exist_ok=True)
-    stamp = timestamp or _current_timestamp()
-    slug = _slugify(project_label or "default") or "default"
+    stamp = timestamp or current_timestamp()
+    slug = slugify(project_label or "default") or "default"
 
     prompt_path = destination / f"{stamp}-{slug}-note.prompt.txt"
     note_path = destination / f"{stamp}-note.txt"
@@ -359,15 +358,6 @@ def _invoke_agent(agent: Agent[None, SeoBrief], prompt: str, *, timeout_seconds:
         raise TypeError("LLM output is not a SeoBrief instance")
 
     return asyncio.run(asyncio.wait_for(_call(), timeout_seconds))
-
-
-def _current_timestamp() -> str:
-    return datetime.now().strftime("%Y%m%d-%H%M%S")
-
-
-def _slugify(value: str) -> str:
-    lowered = value.lower()
-    return re.sub(r"[^a-z0-9]+", "-", lowered).strip("-")
 
 
 def _brief_language_text(brief: SeoBrief) -> str:
@@ -418,9 +408,3 @@ def _metadata_idea_id(metadata: dict[str, Any]) -> str | None:
         return None
     value = raw.strip() if isinstance(raw, str) else str(raw).strip()
     return value or None
-
-
-def _report(reporter: Reporter, message: str) -> None:
-    """Send verbose output when enabled."""
-    if reporter:
-        reporter(message)

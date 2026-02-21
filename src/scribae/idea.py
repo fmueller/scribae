@@ -2,10 +2,8 @@ from __future__ import annotations
 
 import asyncio
 import json
-import re
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import datetime
 from pathlib import Path
 from typing import cast
 
@@ -13,6 +11,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 from pydantic_ai import Agent, NativeOutput, UnexpectedModelBehavior
 from pydantic_ai.settings import ModelSettings
 
+from .common import current_timestamp, report, slugify
 from .io_utils import NoteDetails, Reporter, load_note
 from .language import LanguageMismatchError, LanguageResolutionError, ensure_language_output, resolve_output_language
 from .llm import (
@@ -108,7 +107,7 @@ def prepare_context(
     except OSError as exc:  # pragma: no cover - surfaced by CLI
         raise IdeaFileError(f"Unable to read note: {exc}") from exc
 
-    _report(reporter, f"Loaded note '{note.title}' from {note.path}")
+    report(reporter, f"Loaded note '{note.title}' from {note.path}")
 
     try:
         language_resolution = resolve_output_language(
@@ -121,7 +120,7 @@ def prepare_context(
     except LanguageResolutionError as exc:
         raise IdeaValidationError(str(exc)) from exc
 
-    _report(
+    report(
         reporter,
         f"Resolved output language: {language_resolution.language} (source: {language_resolution.source})",
     )
@@ -132,7 +131,7 @@ def prepare_context(
         note_content=note.body,
         language=language_resolution.language,
     )
-    _report(reporter, "Prepared idea-generation prompt.")
+    report(reporter, "Prepared idea-generation prompt.")
 
     return IdeaContext(note=note, project=project, prompts=prompts, language=language_resolution.language)
 
@@ -159,7 +158,7 @@ def generate_ideas(
         else agent
     )
 
-    _report(reporter, f"Calling model '{model_name}' via {resolved_settings.base_url}")
+    report(reporter, f"Calling model '{model_name}' via {resolved_settings.base_url}")
 
     try:
         ideas = cast(
@@ -188,7 +187,7 @@ def generate_ideas(
     except Exception as exc:  # pragma: no cover - surfaced to CLI
         raise IdeaLLMError(f"LLM request failed: {exc}") from exc
 
-    _report(reporter, "LLM call complete, ideas validated.")
+    report(reporter, "LLM call complete, ideas validated.")
     return ideas
 
 
@@ -208,8 +207,8 @@ def save_prompt_artifacts(
     """Persist the system prompt and truncated note for debugging."""
 
     destination.mkdir(parents=True, exist_ok=True)
-    stamp = timestamp or _current_timestamp()
-    slug = _slugify(project_label or "default") or "default"
+    stamp = timestamp or current_timestamp()
+    slug = slugify(project_label or "default") or "default"
 
     prompt_path = destination / f"{stamp}-{slug}-ideas.prompt.txt"
     note_path = destination / f"{stamp}-note.txt"
@@ -262,22 +261,6 @@ def _invoke_agent(agent: Agent[None, IdeaList], prompt: str, *, timeout_seconds:
         raise TypeError("LLM output is not an IdeaList instance")
 
     return asyncio.run(asyncio.wait_for(_call(), timeout_seconds))
-
-
-def _current_timestamp() -> str:
-    return datetime.now().strftime("%Y%m%d-%H%M%S")
-
-
-def _slugify(value: str) -> str:
-    lowered = value.lower()
-    return re.sub(r"[^a-z0-9]+", "-", lowered).strip("-")
-
-
-def _report(reporter: Reporter, message: str) -> None:
-    """Send verbose output when enabled."""
-
-    if reporter:
-        reporter(message)
 
 
 __all__ = [

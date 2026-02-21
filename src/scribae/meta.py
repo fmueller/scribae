@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import asyncio
 import json
-import re
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
@@ -15,6 +14,7 @@ from pydantic_ai import Agent, NativeOutput, UnexpectedModelBehavior
 from pydantic_ai.settings import ModelSettings
 
 from .brief import SeoBrief
+from .common import report, slugify
 from .io_utils import Reporter, truncate
 from .language import LanguageMismatchError, LanguageResolutionError, ensure_language_output, resolve_output_language
 from .llm import LLM_OUTPUT_RETRIES, LLM_TIMEOUT_SECONDS, OpenAISettings, apply_optional_settings, make_model
@@ -101,7 +101,7 @@ class ArticleMeta(BaseModel):
     @field_validator("tags")
     @classmethod
     def _lowercase_tags(cls, value: list[str]) -> list[str]:
-        return [_slugify(item) for item in value if _slugify(item)]
+        return [slugify(item) for item in value if slugify(item)]
 
 
 class OverwriteMode(str):
@@ -178,7 +178,7 @@ def prepare_context(
     body = _load_body(body_path, max_chars=max_chars)
     brief = _load_brief(brief_path) if brief_path else None
 
-    _report(reporter, f"Loaded body from {body.path.name} ({'truncated' if body.truncated else 'full'}).")
+    report(reporter, f"Loaded body from {body.path.name} ({'truncated' if body.truncated else 'full'}).")
     current_meta, fabricated_fields = _build_seed_meta(body, brief=brief, project=project, overwrite=overwrite)
 
     try:
@@ -192,7 +192,7 @@ def prepare_context(
     except LanguageResolutionError as exc:
         raise MetaValidationError(str(exc)) from exc
 
-    _report(
+    report(
         reporter,
         f"Resolved output language: {language_resolution.language} (source: {language_resolution.source})",
     )
@@ -251,7 +251,7 @@ def generate_metadata(
         agent if agent is not None else _create_agent(model_name, temperature, top_p=top_p, seed=seed)
     )
 
-    _report(
+    report(
         reporter,
         f"Calling model '{model_name}' via {resolved_settings.base_url}" + (f" (reason: {reason})" if reason else ""),
     )
@@ -393,7 +393,7 @@ def _build_seed_meta(
     fabricated = False
     meta: dict[str, Any] = {
         "title": _clean_text(fm.get("title") or fm.get("name")),
-        "slug": _slugify(_clean_text(fm.get("slug")) or ""),
+        "slug": slugify(_clean_text(fm.get("slug")) or ""),
         "excerpt": _clean_text(fm.get("summary") or fm.get("description")),
         "tags": _normalize_tags(fm.get("tags")),
         "reading_time": body.reading_time,
@@ -413,7 +413,7 @@ def _build_seed_meta(
         if _is_missing(meta["search_intent"]) and brief is not None:
             meta["search_intent"] = brief.search_intent
         if not meta["tags"] and brief is not None:
-            meta["tags"] = [_slugify(tag) for tag in brief.secondary_keywords][:8]
+            meta["tags"] = [slugify(tag) for tag in brief.secondary_keywords][:8]
             fabricated = True
         if _is_missing(meta["language"]):
             meta["language"] = project["language"]
@@ -421,7 +421,7 @@ def _build_seed_meta(
     if _is_missing(meta["title"]):
         meta["title"] = body.path.stem.replace("_", " ").replace("-", " ").title()
     if _is_missing(meta["slug"]) and not _is_missing(meta["title"]):
-        meta["slug"] = _slugify(meta["title"])
+        meta["slug"] = slugify(meta["title"])
         fabricated = True
     if _is_missing(meta["excerpt"]):
         meta["excerpt"] = _excerpt_from_body(body.content)
@@ -436,8 +436,8 @@ def _build_seed_meta(
 def _apply_allowed_tags(tags: list[str], allowed: list[str] | None) -> list[str]:
     if not allowed:
         return tags
-    allowed_set = {_slugify(tag) for tag in allowed}
-    filtered = [_slugify(tag) for tag in tags if _slugify(tag) in allowed_set]
+    allowed_set = {slugify(tag) for tag in allowed}
+    filtered = [slugify(tag) for tag in tags if slugify(tag) in allowed_set]
     return filtered or tags
 
 
@@ -469,7 +469,7 @@ def _finalize_article_meta(
 ) -> ArticleMeta:
     base = dict(seed)
     if _is_missing(base.get("slug")) and not _is_missing(base.get("title")):
-        base["slug"] = _slugify(str(base["title"]))
+        base["slug"] = slugify(str(base["title"]))
     if _is_missing(base.get("excerpt")):
         base["excerpt"] = _excerpt_from_body(body.content)
     if not base.get("tags"):
@@ -585,7 +585,7 @@ def _fallback_tags(project: ProjectConfig | dict[str, Any], brief: SeoBrief | No
     if brief is not None:
         tags.extend(brief.secondary_keywords[:6])
     tags.extend(project.get("keywords") or [])
-    cleaned = [_slugify(tag) for tag in tags if _slugify(tag)]
+    cleaned = [slugify(tag) for tag in tags if slugify(tag)]
     if len(cleaned) >= 8:
         return cleaned[:8]
     if not cleaned:
@@ -602,7 +602,7 @@ def _normalize_tags(value: Any) -> list[str]:
         candidates = [str(item).strip() for item in value]
     else:
         return []
-    return [_slugify(item) for item in candidates if _slugify(item)]
+    return [slugify(item) for item in candidates if slugify(item)]
 
 
 def _normalize_list(value: Any) -> list[str] | None:
@@ -622,22 +622,12 @@ def _clean_text(value: Any) -> str | None:
     return text or None
 
 
-def _slugify(value: str) -> str:
-    lowered = value.lower()
-    return re.sub(r"[^a-z0-9]+", "-", lowered).strip("-")
-
-
 def _is_missing(value: Any) -> bool:
     return (
         value is None
         or (isinstance(value, str) and not value.strip())
         or (isinstance(value, list | tuple | set | dict) and not value)
     )
-
-
-def _report(reporter: Reporter, message: str) -> None:
-    if reporter:
-        reporter(message)
 
 
 __all__ = [

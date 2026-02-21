@@ -14,6 +14,7 @@ from pydantic_ai import Agent
 from pydantic_ai.settings import ModelSettings
 
 from .brief import SeoBrief
+from .common import report, slugify
 from .io_utils import NoteDetails, Reporter, load_note
 from .language import (
     LanguageMismatchError,
@@ -102,7 +103,7 @@ def prepare_context(
 
     brief = _load_brief(brief_path)
 
-    _report(reporter, f"Loaded note '{note.title}' and brief '{brief.title}'.")
+    report(reporter, f"Loaded note '{note.title}' and brief '{brief.title}'.")
 
     try:
         language_resolution = resolve_output_language(
@@ -115,7 +116,7 @@ def prepare_context(
     except LanguageResolutionError as exc:
         raise WritingValidationError(str(exc)) from exc
 
-    _report(
+    report(
         reporter,
         f"Resolved output language: {language_resolution.language} (source: {language_resolution.source})",
     )
@@ -249,7 +250,7 @@ def generate_article(
         )
         section = SectionSpec(title=corrected_title, index=section.index)
         prompt, snippets = build_prompt_for_section(context, section, evidence_required=evidence_required)
-        _report(reporter, f"Generating section {section.index}: {section.title}")
+        report(reporter, f"Generating section {section.index}: {section.title}")
 
         if evidence_required and snippets.matches == 0:
             body = "(no supporting evidence in the note)"
@@ -399,7 +400,7 @@ def _build_faq_body(
         note_snippets=snippets.text,
         language=context.language,
     )
-    _report(reporter, "Generating FAQ section")
+    report(reporter, "Generating FAQ section")
 
     try:
         body = ensure_language_output(
@@ -489,7 +490,7 @@ def _assemble_markdown(sections: Sequence[SectionResult]) -> str:
 
 
 def _save_section_artifacts(directory: Path, section: SectionSpec, prompt: str, response: str) -> None:
-    slug = _slugify(section.title) or f"section-{section.index}"
+    slug = slugify(section.title) or f"section-{section.index}"
     prompt_path = directory / f"{section.index:02d}-{slug}.prompt.txt"
     response_path = directory / f"{section.index:02d}-{slug}.response.md"
     prompt_payload = f"SYSTEM PROMPT:\n{SYSTEM_PROMPT}\n\nUSER PROMPT:\n{prompt}\n"
@@ -498,16 +499,6 @@ def _save_section_artifacts(directory: Path, section: SectionSpec, prompt: str, 
         response_path.write_text(response.strip() + "\n", encoding="utf-8")
     except OSError as exc:
         raise WritingFileError(f"Unable to save prompt artifacts: {exc}") from exc
-
-
-def _slugify(value: str) -> str:
-    lowered = value.lower()
-    return re.sub(r"[^a-z0-9]+", "-", lowered).strip("-")
-
-
-def _report(reporter: Reporter, message: str) -> None:
-    if reporter:
-        reporter(message)
 
 
 __all__ = [

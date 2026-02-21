@@ -4,6 +4,8 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from typing import Any
 
+from .common import report
+
 
 class LanguageResolutionError(Exception):
     """Raised when the output language cannot be determined."""
@@ -96,7 +98,7 @@ def ensure_language_output(
         _validate_language(extract_text(first_result), expected_language, language_detector=language_detector)
         return first_result
     except LanguageMismatchError as first_error:
-        _report(reporter, str(first_error) + " Retrying with language correction.")
+        report(reporter, str(first_error) + " Retrying with language correction.")
 
     corrective_prompt = _append_language_correction(prompt, expected_language)
     second_result = invoke(corrective_prompt)
@@ -172,11 +174,6 @@ def _clean_language(value: Any) -> str | None:
         return None
     cleaned = str(value).strip()
     return cleaned or None
-
-
-def _report(reporter: Callable[[str], None] | None, message: str) -> None:
-    if reporter:
-        reporter(message)
 
 
 __all__ = [
