@@ -3,7 +3,7 @@ name = "scribae"
 version = "0.2.0"
 description = "CLI that turns local Markdown notes into structured SEO content packages using LLMs while keeping the human in the loop."
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.10,<3.14"
 license = "Apache-2.0"
 license-files = ["LICENSE"]
 authors = [{ name = "Felix Müller", email = "felix@fmueller.io" }]
@@ -27,7 +27,6 @@ classifiers = [
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
-    "Programming Language :: Python :: 3.14",
     "Topic :: Text Processing",
     "Topic :: Text Processing :: Linguistic",
 ]
