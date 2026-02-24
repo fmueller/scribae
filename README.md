@@ -1,4 +1,7 @@
 [![Build](https://github.com/fmueller/scribae/actions/workflows/build.yml/badge.svg)](https://github.com/fmueller/scribae/actions/workflows/build.yml)
+[![PyPI version](https://img.shields.io/pypi/v/scribae.svg)](https://pypi.org/project/scribae/)
+[![Python versions](https://img.shields.io/pypi/pyversions/scribae.svg)](https://pypi.org/project/scribae/)
+[![License: Apache-2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://github.com/fmueller/scribae/blob/main/LICENSE)
 
 # Scribae
 
