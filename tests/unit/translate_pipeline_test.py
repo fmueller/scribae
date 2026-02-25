@@ -51,7 +51,7 @@ def test_pipeline_preserves_code_links_and_placeholders() -> None:
     result = pipeline.translate(text, cfg)
 
     assert "`code`" in result
-    assert "https://example.com" in result
+    assert "[link](https://example.com)" in result
     assert "{placeholder}" in result
     assert "Hallo" in result.splitlines()[0]
     assert "Hello code" in result.splitlines()[-2]
