@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal, cast
 
+import emoji
 import frontmatter
 import yaml
 from pydantic import BaseModel, ConfigDict, ValidationError, field_validator
@@ -26,33 +27,10 @@ from .prompts.feedback_categories import CATEGORY_DEFINITIONS
 
 logger = logging.getLogger(__name__)
 
-# Pattern to match emoji characters across common Unicode ranges
-_EMOJI_PATTERN = re.compile(
-    "["
-    "\U0001f600-\U0001f64f"  # emoticons
-    "\U0001f300-\U0001f5ff"  # symbols & pictographs
-    "\U0001f680-\U0001f6ff"  # transport & map symbols
-    "\U0001f1e0-\U0001f1ff"  # flags
-    "\U00002700-\U000027bf"  # dingbats
-    "\U0001f900-\U0001f9ff"  # supplemental symbols & pictographs
-    "\U0001fa00-\U0001fa6f"  # chess symbols, extended-A
-    "\U0001fa70-\U0001faff"  # symbols & pictographs extended-A
-    "\U00002600-\U000026ff"  # misc symbols
-    "\U0001f700-\U0001f77f"  # alchemical symbols
-    "\U0001f780-\U0001f7ff"  # geometric shapes extended
-    "\U0001f800-\U0001f8ff"  # supplemental arrows-C
-    "\U0001f3fb-\U0001f3ff"  # skin tone modifiers
-    "\ufe0f"  # variation selector-16 (emoji presentation)
-    "\u200d"  # zero-width joiner (used in combined emojis)
-    "]+",
-    flags=re.UNICODE,
-)
-
 
 def strip_emojis(value: str) -> str:
     """Remove emoji characters from a string and clean up extra whitespace."""
-    result = _EMOJI_PATTERN.sub(" ", value)
-    # Collapse multiple spaces and strip
+    result = emoji.replace_emoji(value, replace=" ")
     return " ".join(result.split())
 
 
