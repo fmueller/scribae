@@ -41,6 +41,7 @@ dependencies = [
     "sacremoses>=0.1.1",
     "lingua-language-detector>=2.0.0",
     "tomli>=2.0.0;python_version<'3.11'",
+    "emoji>=2.15.0",
 ]
 
 [project.optional-dependencies]
