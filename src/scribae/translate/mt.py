@@ -2,22 +2,28 @@ from __future__ import annotations
 
 import importlib
 from collections.abc import Iterable
+from dataclasses import dataclass
 from types import ModuleType
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from .model_registry import ModelRegistry, RouteStep
 
-if TYPE_CHECKING:
-    from transformers import Pipeline
+
+@dataclass(frozen=True)
+class LoadedTranslator:
+    """A tokenizer paired with the seq2seq model it was loaded for."""
+
+    tokenizer: Any
+    model: Any
 
 
 class MTTranslator:
-    """Offline machine translation wrapper around Transformers pipelines."""
+    """Offline machine translation wrapper around Transformers seq2seq models."""
 
     def __init__(self, registry: ModelRegistry, device: str | None = None) -> None:
         self.registry = registry
         self.device = device
-        self._pipelines: dict[str, Pipeline] = {}
+        self._translators: dict[str, LoadedTranslator] = {}
 
     def translate_block(
         self,
@@ -48,18 +54,25 @@ class MTTranslator:
             current = self._run_step_batch(step, current)
         return current
 
-    def _pipeline_for(self, model_id: str) -> Pipeline:
-        # Import transformers lazily so CLI startup stays fast when the translation command isn't invoked.
-        from transformers import pipeline
+    def _resolve_device(self, *, cuda_available: bool) -> str:
+        if self.device is not None and self.device != "auto":
+            return self.device
+        return "cuda" if cuda_available else "cpu"
 
-        if model_id not in self._pipelines:
-            torch = self._require_torch()
-            if self.device is None or self.device == "auto":
-                device = 0 if torch.cuda.is_available() else -1
-                self._pipelines[model_id] = pipeline("translation", model=model_id, device=device)
-            else:
-                self._pipelines[model_id] = pipeline("translation", model=model_id, device=self.device)
-        return self._pipelines[model_id]
+    def _load_translator(self, model_id: str) -> LoadedTranslator:
+        # Import transformers lazily so CLI startup stays fast when the translation command isn't invoked.
+        from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
+
+        torch = self._require_torch()
+        tokenizer = AutoTokenizer.from_pretrained(model_id)
+        device = self._resolve_device(cuda_available=bool(torch.cuda.is_available()))
+        model = AutoModelForSeq2SeqLM.from_pretrained(model_id).to(device)
+        return LoadedTranslator(tokenizer=tokenizer, model=model)
+
+    def _translator_for(self, model_id: str) -> LoadedTranslator:
+        if model_id not in self._translators:
+            self._translators[model_id] = self._load_translator(model_id)
+        return self._translators[model_id]
 
     def _require_torch(self) -> ModuleType:
         try:
@@ -76,62 +89,45 @@ class MTTranslator:
         return torch
 
     def prefetch(self, steps: Iterable[RouteStep]) -> None:
-        """Warm translation pipelines for the provided route steps."""
+        """Warm translation models for the provided route steps."""
         self._require_torch()
         for step in steps:
             try:
-                self._pipeline_for(step.model.model_id)
+                self._translator_for(step.model.model_id)
             except RuntimeError:
                 # Re-raise RuntimeError (e.g., from _require_torch) without wrapping
                 raise
-            except Exception as exc:  # pragma: no cover - depends on HF runtime errors
+            except Exception as exc:
                 raise RuntimeError(
                     f"Failed to prefetch translation model '{step.model.model_id}'. "
                     "Check that the model exists and that your Hugging Face credentials are set."
                 ) from exc
 
-    def _run_step(self, step: RouteStep, text: str) -> str:
-        translator = self._pipeline_for(step.model.model_id)
-        try:
-            result: list[dict[str, Any]] | str = translator(
-                text,
-                src_lang=step.src_lang if step.model.backend == "nllb" else None,
-                tgt_lang=step.tgt_lang if step.model.backend == "nllb" else None,
-            )
-        except Exception as exc:  # pragma: no cover - depends on transformer runtime failures
-            raise RuntimeError(
-                f"Translation failed for {step.src_lang}->{step.tgt_lang} using {step.model.model_id}"
-            ) from exc
-        return self._extract_translation(result)[0]
-
     def _run_step_batch(self, step: RouteStep, texts: list[str]) -> list[str]:
-        translator = self._pipeline_for(step.model.model_id)
+        loaded = self._translator_for(step.model.model_id)
+        tokenizer, model = loaded.tokenizer, loaded.model
+        # NLLB is multilingual: the source language is set on the tokenizer and the target
+        # language is forced as the first generated token. Marian models are language-pair
+        # specific, so neither applies.
+        is_multilingual = step.model.backend == "nllb"
+        generate_kwargs: dict[str, Any] = {}
+        if is_multilingual:
+            tokenizer.src_lang = step.src_lang
+            generate_kwargs["forced_bos_token_id"] = tokenizer.convert_tokens_to_ids(step.tgt_lang)
         try:
-            result: list[dict[str, Any]] = translator(
-                texts,
-                src_lang=step.src_lang if step.model.backend == "nllb" else None,
-                tgt_lang=step.tgt_lang if step.model.backend == "nllb" else None,
-            )
+            encoded = tokenizer(texts, return_tensors="pt", padding=True, truncation=True)
+            generated = model.generate(**encoded.to(model.device), **generate_kwargs)
+            translations = tokenizer.batch_decode(generated, skip_special_tokens=True)
         except Exception as exc:  # pragma: no cover - depends on transformer runtime failures
             raise RuntimeError(
                 f"Translation failed for {step.src_lang}->{step.tgt_lang} using {step.model.model_id}"
             ) from exc
-        return self._extract_translation(result)
-
-    def _extract_translation(self, result: list[dict[str, Any]] | str) -> list[str]:
-        if isinstance(result, str):
-            return [result]
-        if not isinstance(result, list):
-            raise RuntimeError("Translation pipeline returned unexpected output shape")
-        if not result:
-            raise RuntimeError("Translation pipeline returned no output")
-        translations: list[str] = []
-        for item in result:
-            translated = item.get("translation_text") or item.get("generated_text")
-            if not translated:
-                raise RuntimeError("Translation pipeline returned no translation_text")
-            translations.append(str(translated))
-        return translations
+        if len(translations) != len(texts):
+            raise RuntimeError(
+                f"Translation model '{step.model.model_id}' returned "
+                f"{len(translations)} translations for {len(texts)} inputs"
+            )
+        return [str(translation) for translation in translations]
 
 
-__all__ = ["MTTranslator"]
+__all__ = ["LoadedTranslator", "MTTranslator"]

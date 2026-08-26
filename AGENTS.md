@@ -25,10 +25,6 @@ PyTorch is pinned to the CPU-only build (~200MB vs ~2GB) through
 `--index pytorch-cpu`: naming an index on the CLI overrides `explicit = true`
 and makes the PyTorch index outrank PyPI for every package.
 
-`transformers` is held at `<5` because 5.0.0 removed the `translation`
-pipeline task that `translate/mt.py` uses. Do not widen that bound until
-`mt.py` migrates off `pipeline("translation")`.
-
 **Important:** The `--all-extras` flag is required for development. It installs PyTorch which is needed for mypy to pass. Always run tests, mypy, and ruff at the end of your task and fix any issues.
 
 ## Project Structure
@@ -96,7 +92,7 @@ src/scribae/
 
 Tests mirror module names: `tests/unit/main_test.py` targets `src/scribae/main.py`
 
-The conftest stubs `MTTranslator._pipeline_for` to avoid downloading large translation models during tests. Use `pytest.mark.asyncio` for async tests. Note that this stub means the suite does not exercise a real `transformers` pipeline, so pipeline-level breakage will not surface in tests.
+The conftest stubs `MTTranslator._load_translator` to avoid downloading large translation models during tests. Use `pytest.mark.asyncio` for async tests. Note that this stub means the suite never loads a real `transformers` model, so breakage in the loading path will not surface in tests.
 
 ## Commits
 
