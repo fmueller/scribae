@@ -52,7 +52,7 @@ def test_translate_blocks_encodes_as_padded_pytorch_tensors() -> None:
 
     mt.translate_blocks(["alpha"], "en", "de")
 
-    assert mt.tokenizer.encode_calls[0].kwargs == {"return_tensors": "pt", "padding": True, "truncation": True}
+    assert mt.tokenizer.encode_calls[0].kwargs == {"return_tensors": "pt", "padding": True}
 
 
 def test_translate_blocks_sets_source_language_and_forces_target_for_nllb() -> None:
@@ -145,3 +145,41 @@ def test_resolve_device_honours_explicit_device() -> None:
 
 def test_resolve_device_treats_auto_as_unset() -> None:
     assert _marian_translator(device="auto")._resolve_device(cuda_available=False) == "cpu"
+
+
+def test_translate_blocks_does_not_truncate_input() -> None:
+    mt = _marian_translator()
+
+    mt.translate_blocks(["alpha"], "en", "de")
+
+    assert "truncation" not in mt.tokenizer.encode_calls[0].kwargs
+
+
+def test_translate_blocks_preserves_tokenizer_spacing_on_decode() -> None:
+    mt = _marian_translator()
+
+    mt.translate_blocks(["alpha"], "en", "de")
+
+    assert mt.tokenizer.decode_kwargs["clean_up_tokenization_spaces"] is False
+
+
+def test_translate_blocks_rejects_input_longer_than_model_limit() -> None:
+    mt = _marian_translator()
+    mt.tokenizer.model_max_length = 3
+
+    with pytest.raises(RuntimeError, match="too long for 'mt-en-de': 5 tokens exceeds the model limit of 3"):
+        mt.translate_blocks(["alpha"], "en", "de")
+
+
+def test_translate_blocks_allows_input_within_model_limit() -> None:
+    mt = _marian_translator()
+    mt.tokenizer.model_max_length = 5
+
+    assert mt.translate_blocks(["alpha"], "en", "de") == ["alpha::translated"]
+
+
+def test_translate_blocks_ignores_sentinel_model_limit() -> None:
+    mt = _marian_translator()
+    mt.tokenizer.model_max_length = int(1e30)
+
+    assert mt.translate_blocks(["alpha"], "en", "de") == ["alpha::translated"]

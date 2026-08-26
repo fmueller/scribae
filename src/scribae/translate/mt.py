@@ -8,11 +8,16 @@ from typing import Any, Protocol, cast
 
 from .model_registry import ModelRegistry, RouteStep
 
+# transformers uses a sentinel (~1e30) for tokenizers without a real maximum length.
+_NO_LENGTH_LIMIT = int(1e29)
+
 
 class BatchEncoding(Protocol):
     """The batch of tensors a tokenizer produces: a mapping that can move to a device."""
 
     def to(self, device: Any) -> Mapping[str, Any]: ...
+
+    def __getitem__(self, key: str) -> Any: ...
 
 
 class Tokenizer(Protocol):
@@ -25,6 +30,9 @@ class Tokenizer(Protocol):
     def batch_decode(self, sequences: Any, **kwargs: Any) -> list[str]: ...
 
     def convert_tokens_to_ids(self, token: str) -> int: ...
+
+    # Marian tokenizers expose no `src_lang` (they are language-pair specific and use
+    # `source_lang`/`target_lang`); only the multilingual NLLB branch reads or sets it.
 
 
 class Seq2SeqModel(Protocol):
@@ -44,7 +52,12 @@ class LoadedTranslator:
 
 
 class MTTranslator:
-    """Offline machine translation wrapper around Transformers seq2seq models."""
+    """Offline machine translation wrapper around Transformers seq2seq models.
+
+    Not safe for concurrent use: loaded translators are cached per model id, and the NLLB
+    branch sets `src_lang` on the shared tokenizer, which rebuilds its post-processor. One
+    instance therefore serves one sequence of route steps at a time.
+    """
 
     def __init__(self, registry: ModelRegistry, device: str | None = None) -> None:
         self.registry = registry
@@ -130,20 +143,42 @@ class MTTranslator:
                     "Check that the model exists and that your Hugging Face credentials are set."
                 ) from exc
 
+    def _reject_overlong_input(self, step: RouteStep, tokenizer: Tokenizer, encoded: BatchEncoding) -> None:
+        """Fail loudly when a block exceeds the model's context instead of losing its tail."""
+        max_length = getattr(tokenizer, "model_max_length", None)
+        # Tokenizers with no meaningful bound report a sentinel far larger than any real context.
+        if not isinstance(max_length, int) or max_length <= 0 or max_length >= _NO_LENGTH_LIMIT:
+            return
+        longest = max((len(row) for row in encoded["input_ids"]), default=0)
+        if longest > max_length:
+            raise RuntimeError(
+                f"Translation input is too long for '{step.model.model_id}': {longest} tokens "
+                f"exceeds the model limit of {max_length}. Split the block before translating."
+            )
+
     def _run_step_batch(self, step: RouteStep, texts: list[str]) -> list[str]:
         loaded = self._translator_for(step.model.model_id)
         tokenizer, model = loaded.tokenizer, loaded.model
-        # NLLB is multilingual: the source language is set on the tokenizer and the target
-        # language is forced as the first generated token. Marian models are language-pair
-        # specific, so neither applies.
-        generate_kwargs: dict[str, Any] = {}
-        if step.model.backend == "nllb":
-            tokenizer.src_lang = step.src_lang
-            generate_kwargs["forced_bos_token_id"] = tokenizer.convert_tokens_to_ids(step.tgt_lang)
         try:
-            encoded = tokenizer(texts, return_tensors="pt", padding=True, truncation=True)
+            # NLLB is multilingual: the source language is set on the tokenizer and the target
+            # language is forced as the first generated token. Marian models are language-pair
+            # specific, so neither applies.
+            generate_kwargs: dict[str, Any] = {}
+            if step.model.backend == "nllb":
+                tokenizer.src_lang = step.src_lang
+                generate_kwargs["forced_bos_token_id"] = tokenizer.convert_tokens_to_ids(step.tgt_lang)
+            # Deliberately not truncating: the removed pipeline never did either, and silently
+            # dropping the tail of a block would corrupt the translation without any signal.
+            encoded = tokenizer(texts, return_tensors="pt", padding=True)
+            self._reject_overlong_input(step, tokenizer, encoded)
             generated = model.generate(**encoded.to(model.device), **generate_kwargs)
-            translations = tokenizer.batch_decode(generated, skip_special_tokens=True)
+            # The removed pipeline decoded with clean_up_tokenization_spaces=False; some model
+            # repos ship a tokenizer_config that would otherwise flip this and reflow punctuation.
+            translations = tokenizer.batch_decode(
+                generated, skip_special_tokens=True, clean_up_tokenization_spaces=False
+            )
+        except RuntimeError:
+            raise
         except Exception as exc:
             raise RuntimeError(
                 f"Translation failed for {step.src_lang}->{step.tgt_lang} using {step.model.model_id}"
