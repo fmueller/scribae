@@ -1,14 +1,22 @@
 from __future__ import annotations
 
-from typing import cast
-
-from transformers import Pipeline
+from typing import Any, cast
 
 from scribae.translate.markdown_segmenter import MarkdownSegmenter, ProtectedText
 from scribae.translate.model_registry import ModelRegistry, ModelSpec
-from scribae.translate.mt import MTTranslator
+from scribae.translate.mt import LoadedTranslator, MTTranslator
 from scribae.translate.pipeline import ToneProfile, TranslationConfig, TranslationPipeline
 from scribae.translate.postedit import LLMPostEditor, PostEditAborted, PostEditValidationError
+
+
+class _Encoding(dict[str, Any]):
+    """Minimal stand-in for a transformers BatchEncoding."""
+
+    def __init__(self, texts: list[str]) -> None:
+        super().__init__(input_ids=list(texts))
+
+    def to(self, device: str) -> _Encoding:  # noqa: ARG002
+        return self
 
 
 class StubMT(MTTranslator):
@@ -228,17 +236,30 @@ def test_postedit_abort_skips_strict_retry() -> None:
 
 
 def test_mt_translator_batches_and_preserves_order() -> None:
-    calls: list[list[str] | str] = []
+    calls: list[list[str]] = []
+
+    class RecordingTokenizer:
+        src_lang: str | None = None
+
+        def __call__(self, texts: list[str], **_: object) -> dict[str, Any]:
+            calls.append(texts)
+            return _Encoding(texts)
+
+        def batch_decode(self, sequences: list[str], **_: object) -> list[str]:
+            return [item.upper() for item in sequences]
+
+        def convert_tokens_to_ids(self, token: str) -> int:  # noqa: ARG002
+            return 0
+
+    class RecordingModel:
+        device = "cpu"
+
+        def generate(self, **kwargs: object) -> list[str]:
+            return list(cast(list[str], kwargs["input_ids"]))
 
     class RecordingMT(MTTranslator):
-        def _pipeline_for(self, model_id: str) -> Pipeline:
-            def translator(texts: list[str] | str, **_: object) -> list[dict[str, str]]:
-                calls.append(texts)
-                if isinstance(texts, list):
-                    return [{"translation_text": t.upper()} for t in texts]
-                return [{"translation_text": str(texts).upper()}]
-
-            return cast(Pipeline, translator)
+        def _load_translator(self, model_id: str) -> LoadedTranslator:  # noqa: ARG002
+            return LoadedTranslator(tokenizer=RecordingTokenizer(), model=RecordingModel())
 
     registry = ModelRegistry(specs=[ModelSpec(model_id="mt-en-de", src_lang="en", tgt_lang="de", backend="marian")])
     mt = RecordingMT(registry=registry)

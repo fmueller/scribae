@@ -33,9 +33,3 @@ updates:
     labels:
       - "python"
       - "dependencies"
-    ignore:
-      # transformers 5.0.0 removed the "translation" pipeline task that
-      # translate/mt.py depends on. Drop this once mt.py is migrated.
-      - dependency-name: "transformers"
-        update-types:
-          - "version-update:semver-major"

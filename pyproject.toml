@@ -36,9 +36,7 @@ dependencies = [
     "typer>=0.20.0",
     "pyyaml>=6.0.2",
     "python-frontmatter>=1.1.0",
-    # transformers 5.0.0 removed the "translation" pipeline task that translate/mt.py
-    # relies on. Unpin once mt.py migrates off pipeline("translation").
-    "transformers>=4.46.3,<5",
+    "transformers>=5.5.0",
     "sentencepiece>=0.2.0",
     "sacremoses>=0.1.1",
     "lingua-language-detector>=2.0.0",
