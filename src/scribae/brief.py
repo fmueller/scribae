@@ -344,7 +344,7 @@ def _create_agent(
         model=model,
         output_type=NativeOutput(SeoBrief, name="SEO Brief", strict=True),
         instructions=SYSTEM_PROMPT,
-        output_retries=LLM_OUTPUT_RETRIES,
+        retries={"output": LLM_OUTPUT_RETRIES},
     )
 
 

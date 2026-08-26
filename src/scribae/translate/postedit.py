@@ -387,7 +387,7 @@ class LLMPostEditor:
             model=model,
             output_type=NativeOutput(str, name="translation", strict=True),
             instructions="You post-edit machine translations.",
-            output_retries=LLM_OUTPUT_RETRIES,
+            retries={"output": LLM_OUTPUT_RETRIES},
         )
 
     def _trim_inputs(self, source_text: str, mt_draft: str) -> tuple[str, str]:

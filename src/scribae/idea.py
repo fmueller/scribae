@@ -241,7 +241,7 @@ def _create_agent(
         model=model,
         output_type=NativeOutput(IdeaList, name="IdeaList", strict=True),
         instructions=IDEA_SYSTEM_PROMPT,
-        output_retries=LLM_OUTPUT_RETRIES,
+        retries={"output": LLM_OUTPUT_RETRIES},
     )
 
 
