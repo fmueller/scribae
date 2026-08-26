@@ -267,11 +267,9 @@ cd scribae
 uv sync --locked --all-extras --dev
 ```
 
-For CPU-only PyTorch (~200MB vs ~2GB):
-
-```bash
-uv sync --locked --all-extras --dev --index pytorch-cpu
-```
+PyTorch resolves to the CPU-only build (~200MB vs ~2GB) by default, via the
+`pytorch-cpu` index pinned in `[tool.uv.sources]`. For a CUDA build, override
+the `torch` source in your own checkout.
 
 ### Running from source
 
