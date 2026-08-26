@@ -20,10 +20,10 @@ uv run pytest tests/unit/foo_test.py  # Run single test file
 uv run pytest -k "test_name"          # Run tests matching pattern
 ```
 
-For a lighter install (~200MB vs ~2GB), use the CPU-only PyTorch index:
-```bash
-uv sync --locked --all-extras --dev --index pytorch-cpu
-```
+PyTorch is pinned to the CPU-only build (~200MB vs ~2GB) through
+`[tool.uv.sources]`, so a plain `uv sync` gets the light install. Do not pass
+`--index pytorch-cpu`: naming an index on the CLI overrides `explicit = true`
+and makes the PyTorch index outrank PyPI for every package.
 
 **Important:** The `--all-extras` flag is required for development. It installs PyTorch which is needed for mypy to pass. Always run tests, mypy, and ruff at the end of your task and fix any issues.
 
