@@ -113,7 +113,7 @@ ignore_missing_imports = true
 pythonpath = ["src"]
 
 [build-system]
-requires = ["setuptools>=61", "wheel"]
+requires = ["setuptools>=77", "packaging>=24.2", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
