@@ -47,13 +47,18 @@ class FakeTokenizer:
         self.token_ids = token_ids or {}
         self.src_lang: str | None = None
         self.encode_calls: list[EncodeCall] = []
+        self.decode_kwargs: dict[str, Any] = {}
+        # Absent on a real tokenizer only in the sense that it always has one; tests that care
+        # about the context-length guard set a concrete value.
+        self.model_max_length: int | None = None
 
     def __call__(self, texts: list[str], **kwargs: Any) -> FakeEncoding:
         encoding = FakeEncoding(texts)
         self.encode_calls.append(EncodeCall(texts=list(texts), kwargs=kwargs, encoding=encoding))
         return encoding
 
-    def batch_decode(self, sequences: list[str], **_: Any) -> list[str]:
+    def batch_decode(self, sequences: list[str], **kwargs: Any) -> list[str]:
+        self.decode_kwargs = kwargs
         return [self._decode(item) for item in sequences]
 
     def convert_tokens_to_ids(self, token: str) -> int:
