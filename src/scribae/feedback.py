@@ -521,7 +521,7 @@ def _create_agent(
         model=model,
         output_type=NativeOutput(FeedbackReport, name="FeedbackReport", strict=True),
         instructions=SYSTEM_PROMPT,
-        output_retries=LLM_OUTPUT_RETRIES,
+        retries={"output": LLM_OUTPUT_RETRIES},
     )
 
 

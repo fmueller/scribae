@@ -535,7 +535,7 @@ def _create_agent(
         model=model,
         output_type=NativeOutput(ArticleMeta, name="ArticleMeta", strict=True),
         instructions=SYSTEM_PROMPT,
-        output_retries=LLM_OUTPUT_RETRIES,
+        retries={"output": LLM_OUTPUT_RETRIES},
     )
 
 
