@@ -1,22 +1,11 @@
 from __future__ import annotations
 
-from typing import Any, cast
-
 from scribae.translate.markdown_segmenter import MarkdownSegmenter, ProtectedText
 from scribae.translate.model_registry import ModelRegistry, ModelSpec
-from scribae.translate.mt import LoadedTranslator, MTTranslator
+from scribae.translate.mt import MTTranslator
 from scribae.translate.pipeline import ToneProfile, TranslationConfig, TranslationPipeline
 from scribae.translate.postedit import LLMPostEditor, PostEditAborted, PostEditValidationError
-
-
-class _Encoding(dict[str, Any]):
-    """Minimal stand-in for a transformers BatchEncoding."""
-
-    def __init__(self, texts: list[str]) -> None:
-        super().__init__(input_ids=list(texts))
-
-    def to(self, device: str) -> _Encoding:  # noqa: ARG002
-        return self
+from tests.mt_fakes import FakeTokenizer, StubMTTranslator
 
 
 class StubMT(MTTranslator):
@@ -236,39 +225,14 @@ def test_postedit_abort_skips_strict_retry() -> None:
 
 
 def test_mt_translator_batches_and_preserves_order() -> None:
-    calls: list[list[str]] = []
-
-    class RecordingTokenizer:
-        src_lang: str | None = None
-
-        def __call__(self, texts: list[str], **_: object) -> dict[str, Any]:
-            calls.append(texts)
-            return _Encoding(texts)
-
-        def batch_decode(self, sequences: list[str], **_: object) -> list[str]:
-            return [item.upper() for item in sequences]
-
-        def convert_tokens_to_ids(self, token: str) -> int:  # noqa: ARG002
-            return 0
-
-    class RecordingModel:
-        device = "cpu"
-
-        def generate(self, **kwargs: object) -> list[str]:
-            return list(cast(list[str], kwargs["input_ids"]))
-
-    class RecordingMT(MTTranslator):
-        def _load_translator(self, model_id: str) -> LoadedTranslator:  # noqa: ARG002
-            return LoadedTranslator(tokenizer=RecordingTokenizer(), model=RecordingModel())
-
     registry = ModelRegistry(specs=[ModelSpec(model_id="mt-en-de", src_lang="en", tgt_lang="de", backend="marian")])
-    mt = RecordingMT(registry=registry)
+    mt = StubMTTranslator(registry, tokenizer=FakeTokenizer(decode=str.upper))
 
     outputs = mt.translate_blocks(["a", "b"], "en", "de")
 
     assert outputs == ["A", "B"]
-    assert len(calls) == 1
-    assert calls[0] == ["a", "b"]
+    assert len(mt.tokenizer.encode_calls) == 1
+    assert mt.tokenizer.encode_calls[0].texts == ["a", "b"]
 
 
 def test_prefetch_shows_pytorch_error_not_huggingface_message() -> None:

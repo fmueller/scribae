@@ -92,7 +92,7 @@ src/scribae/
 
 Tests mirror module names: `tests/unit/main_test.py` targets `src/scribae/main.py`
 
-The conftest stubs `MTTranslator._load_translator` to avoid downloading large translation models during tests. Use `pytest.mark.asyncio` for async tests. Note that this stub means the suite never loads a real `transformers` model, so breakage in the loading path will not surface in tests.
+Shared tokenizer/model test doubles live in `tests/mt_fakes.py`. The conftest uses them to stub `MTTranslator._load_translator` and avoid downloading large translation models during tests. Use `pytest.mark.asyncio` for async tests. Note that this stub means the suite never loads a real `transformers` model, so breakage in the loading path will not surface in tests.
 
 ## Commits
 
