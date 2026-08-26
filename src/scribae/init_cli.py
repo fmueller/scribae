@@ -47,7 +47,7 @@ def _prompt_text(label: str, description: str, example: str, *, default: str, sh
     typer.secho(label, fg=typer.colors.CYAN, bold=True)
     typer.echo(description)
     typer.secho(f"Example: {example}", fg=typer.colors.MAGENTA)
-    return cast(str, typer.prompt("Value", default=default, show_default=show_default))
+    return typer.prompt("Value", default=default, show_default=show_default)
 
 
 def _split_list(value: str) -> list[str]:
