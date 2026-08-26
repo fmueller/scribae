@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from scribae.translate.model_registry import ModelRegistry
-from scribae.translate.mt import LoadedTranslator, MTTranslator
+from scribae.translate.mt import DEFAULT_BATCH_SIZE, LoadedTranslator, MTTranslator
 
 
 class FakeEncoding(dict[str, Any]):
@@ -92,8 +92,9 @@ class StubMTTranslator(MTTranslator):
         device: str | None = None,
         tokenizer: FakeTokenizer | None = None,
         model: FakeModel | None = None,
+        batch_size: int = DEFAULT_BATCH_SIZE,
     ) -> None:
-        super().__init__(registry, device=device)
+        super().__init__(registry, device=device, batch_size=batch_size)
         self.tokenizer = tokenizer or FakeTokenizer()
         self.model = model or FakeModel()
         self.load_calls: list[str] = []
