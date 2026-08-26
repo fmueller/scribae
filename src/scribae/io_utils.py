@@ -44,8 +44,9 @@ def load_note(note_path: Path, *, max_chars: int) -> NoteDetails:
     body = post.content.strip()
     truncated_body, truncated = truncate(body, max_chars)
 
-    note_title = (
-        metadata.get("title") or metadata.get("name") or note_path.stem.replace("_", " ").replace("-", " ").title()
+    # Front matter is arbitrary YAML, so a `title:` may parse as a number, list, or blank.
+    note_title = _first_text(metadata.get("title"), metadata.get("name")) or (
+        note_path.stem.replace("_", " ").replace("-", " ").title()
     )
 
     return NoteDetails(
@@ -72,6 +73,14 @@ def truncate(value: str, max_chars: int) -> tuple[str, bool]:
     if len(value) <= max_chars:
         return value, False
     return value[: max_chars - 1].rstrip() + " …", True
+
+
+def _first_text(*candidates: object) -> str | None:
+    """Return the first candidate that is a non-blank string."""
+    for candidate in candidates:
+        if isinstance(candidate, str) and candidate.strip():
+            return candidate
+    return None
 
 
 __all__ = ["NoteDetails", "Reporter", "load_note", "truncate"]

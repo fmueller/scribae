@@ -110,3 +110,35 @@ class TestLoadNoteErrors:
 
         with pytest.raises(RuntimeError, match="unexpected parser failure"):
             load_note(Path("note.md"), max_chars=100)
+
+
+class TestLoadNoteTitle:
+    def test_title_comes_from_frontmatter(self, tmp_path: Path) -> None:
+        note = tmp_path / "my-note.md"
+        note.write_text("---\ntitle: Real Title\n---\n\nBody\n", encoding="utf-8")
+
+        assert load_note(note, max_chars=1000).title == "Real Title"
+
+    def test_name_is_used_when_title_is_absent(self, tmp_path: Path) -> None:
+        note = tmp_path / "my-note.md"
+        note.write_text("---\nname: From Name\n---\n\nBody\n", encoding="utf-8")
+
+        assert load_note(note, max_chars=1000).title == "From Name"
+
+    def test_filename_is_used_when_frontmatter_has_no_title(self, tmp_path: Path) -> None:
+        note = tmp_path / "my_great-note.md"
+        note.write_text("Body\n", encoding="utf-8")
+
+        assert load_note(note, max_chars=1000).title == "My Great Note"
+
+    def test_non_string_title_falls_back_to_the_filename(self, tmp_path: Path) -> None:
+        note = tmp_path / "my-note.md"
+        note.write_text("---\ntitle: 2026\n---\n\nBody\n", encoding="utf-8")
+
+        assert load_note(note, max_chars=1000).title == "My Note"
+
+    def test_blank_title_falls_back_to_the_filename(self, tmp_path: Path) -> None:
+        note = tmp_path / "my-note.md"
+        note.write_text("---\ntitle: '   '\n---\n\nBody\n", encoding="utf-8")
+
+        assert load_note(note, max_chars=1000).title == "My Note"
