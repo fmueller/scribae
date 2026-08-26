@@ -1,20 +1,46 @@
 from __future__ import annotations
 
 import importlib
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from types import ModuleType
-from typing import Any
+from typing import Any, Protocol, cast
 
 from .model_registry import ModelRegistry, RouteStep
+
+
+class BatchEncoding(Protocol):
+    """The batch of tensors a tokenizer produces: a mapping that can move to a device."""
+
+    def to(self, device: Any) -> Mapping[str, Any]: ...
+
+
+class Tokenizer(Protocol):
+    """The slice of the transformers tokenizer API this module relies on."""
+
+    src_lang: str | None
+
+    def __call__(self, texts: list[str], **kwargs: Any) -> BatchEncoding: ...
+
+    def batch_decode(self, sequences: Any, **kwargs: Any) -> list[str]: ...
+
+    def convert_tokens_to_ids(self, token: str) -> int: ...
+
+
+class Seq2SeqModel(Protocol):
+    """The slice of the transformers seq2seq model API this module relies on."""
+
+    device: Any
+
+    def generate(self, **kwargs: Any) -> Any: ...
 
 
 @dataclass(frozen=True)
 class LoadedTranslator:
     """A tokenizer paired with the seq2seq model it was loaded for."""
 
-    tokenizer: Any
-    model: Any
+    tokenizer: Tokenizer
+    model: Seq2SeqModel
 
 
 class MTTranslator:
@@ -67,7 +93,8 @@ class MTTranslator:
         tokenizer = AutoTokenizer.from_pretrained(model_id)
         device = self._resolve_device(cuda_available=bool(torch.cuda.is_available()))
         model = AutoModelForSeq2SeqLM.from_pretrained(model_id).to(device)
-        return LoadedTranslator(tokenizer=tokenizer, model=model)
+        # The transformers auto-classes return broad union types; narrow them to the API we use.
+        return LoadedTranslator(tokenizer=cast(Tokenizer, tokenizer), model=cast(Seq2SeqModel, model))
 
     def _translator_for(self, model_id: str) -> LoadedTranslator:
         if model_id not in self._translators:
@@ -109,16 +136,15 @@ class MTTranslator:
         # NLLB is multilingual: the source language is set on the tokenizer and the target
         # language is forced as the first generated token. Marian models are language-pair
         # specific, so neither applies.
-        is_multilingual = step.model.backend == "nllb"
         generate_kwargs: dict[str, Any] = {}
-        if is_multilingual:
+        if step.model.backend == "nllb":
             tokenizer.src_lang = step.src_lang
             generate_kwargs["forced_bos_token_id"] = tokenizer.convert_tokens_to_ids(step.tgt_lang)
         try:
             encoded = tokenizer(texts, return_tensors="pt", padding=True, truncation=True)
             generated = model.generate(**encoded.to(model.device), **generate_kwargs)
             translations = tokenizer.batch_decode(generated, skip_special_tokens=True)
-        except Exception as exc:  # pragma: no cover - depends on transformer runtime failures
+        except Exception as exc:
             raise RuntimeError(
                 f"Translation failed for {step.src_lang}->{step.tgt_lang} using {step.model.model_id}"
             ) from exc
@@ -130,4 +156,4 @@ class MTTranslator:
         return [str(translation) for translation in translations]
 
 
-__all__ = ["LoadedTranslator", "MTTranslator"]
+__all__ = ["BatchEncoding", "LoadedTranslator", "MTTranslator", "Seq2SeqModel", "Tokenizer"]

@@ -1,11 +1,11 @@
 import re
 from collections.abc import Generator
-from typing import Any
 
 import pytest
 from faker import Faker
 
-from scribae.translate.mt import LoadedTranslator
+from scribae.translate.mt import LoadedTranslator, MTTranslator
+from tests.mt_fakes import FakeModel, FakeTokenizer
 
 
 def strip_ansi(text: str) -> str:
@@ -17,35 +17,10 @@ def strip_ansi(text: str) -> str:
 def stub_mt_pipeline(monkeypatch: pytest.MonkeyPatch) -> None:
     """Avoid downloading translation models; echoes the input back as the translation."""
 
-    class _EchoEncoding(dict[str, Any]):
-        def __init__(self, texts: list[str]) -> None:
-            super().__init__(input_ids=list(texts))
+    def _fake_load(self: MTTranslator, model_id: str) -> LoadedTranslator:
+        return LoadedTranslator(tokenizer=FakeTokenizer(), model=FakeModel())
 
-        def to(self, device: str) -> "_EchoEncoding":  # noqa: ARG002
-            return self
-
-    class _EchoTokenizer:
-        src_lang: str | None = None
-
-        def __call__(self, texts: list[str], **_: object) -> _EchoEncoding:
-            return _EchoEncoding(texts)
-
-        def batch_decode(self, sequences: list[str], **_: object) -> list[str]:
-            return list(sequences)
-
-        def convert_tokens_to_ids(self, token: str) -> int:  # noqa: ARG002
-            return 0
-
-    class _EchoModel:
-        device = "cpu"
-
-        def generate(self, **kwargs: Any) -> list[str]:
-            return list(kwargs["input_ids"])
-
-    def _fake_load(self: object, model_id: str) -> Any:  # noqa: ARG001
-        return LoadedTranslator(tokenizer=_EchoTokenizer(), model=_EchoModel())
-
-    monkeypatch.setattr("scribae.translate.mt.MTTranslator._load_translator", _fake_load)
+    monkeypatch.setattr(MTTranslator, "_load_translator", _fake_load)
 
 
 @pytest.fixture()
