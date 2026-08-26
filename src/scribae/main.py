@@ -2,10 +2,10 @@ from __future__ import annotations
 
 import os
 
-import click
 import typer
 
 from .brief_cli import brief_command
+from .cli_output import set_quiet
 from .feedback_cli import feedback_command
 from .idea_cli import idea_command
 from .init_cli import init_command
@@ -44,11 +44,9 @@ def app_callback(
 ) -> None:
     """Root Scribae CLI callback."""
     setup_logging()
-    ctx.obj = {"quiet": quiet}
+    set_quiet(quiet)
     if no_color or "NO_COLOR" in os.environ:
-        context = click.get_current_context(silent=True)
-        if context is not None:
-            context.color = False
+        ctx.color = False
 
 
 app.command("idea", help="Brainstorm article ideas from a note with project-aware guidance.")(idea_command)

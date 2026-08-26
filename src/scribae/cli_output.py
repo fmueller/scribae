@@ -1,21 +1,22 @@
 from __future__ import annotations
 
-from collections.abc import Mapping
-from typing import Any, cast
+from contextvars import ContextVar
+from typing import Any
 
-import click
 import typer
 
+# typer 0.27 invokes command functions outside the Click context stack, so
+# `click.get_current_context()` is empty inside a command. The root callback
+# therefore records the flag here instead of on `ctx.obj`.
+_quiet: ContextVar[bool] = ContextVar("scribae_quiet", default=False)
 
-def _context_obj() -> Mapping[str, Any]:
-    context = click.get_current_context(silent=True)
-    if context is None or context.obj is None:
-        return {}
-    return cast(Mapping[str, Any], context.obj)
+
+def set_quiet(quiet: bool) -> None:
+    _quiet.set(quiet)
 
 
 def is_quiet() -> bool:
-    return bool(_context_obj().get("quiet", False))
+    return _quiet.get()
 
 
 def echo_info(message: str, *, err: bool = False) -> None:
@@ -30,4 +31,4 @@ def secho_info(message: str, **kwargs: Any) -> None:
     typer.secho(message, **kwargs)
 
 
-__all__ = ["echo_info", "is_quiet", "secho_info"]
+__all__ = ["echo_info", "is_quiet", "secho_info", "set_quiet"]
