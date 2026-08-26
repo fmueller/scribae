@@ -5,7 +5,7 @@ from typing import Any
 import pytest
 
 from scribae.translate.model_registry import ModelRegistry, ModelSpec
-from scribae.translate.mt import LoadedTranslator
+from scribae.translate.mt import DEFAULT_BATCH_SIZE, LoadedTranslator
 from tests.mt_fakes import FakeTokenizer, StubMTTranslator
 
 MARIAN_SPEC = ModelSpec(model_id="mt-en-de", src_lang="en", tgt_lang="de", backend="marian")
@@ -14,9 +14,11 @@ MARIAN_SPEC = ModelSpec(model_id="mt-en-de", src_lang="en", tgt_lang="de", backe
 NLLB_TARGET_TOKEN_ID = 42
 
 
-def _marian_translator(device: str | None = None) -> StubMTTranslator:
+def _marian_translator(device: str | None = None, batch_size: int = DEFAULT_BATCH_SIZE) -> StubMTTranslator:
     tokenizer = FakeTokenizer(decode=lambda text: f"{text}::translated")
-    return StubMTTranslator(ModelRegistry(specs=[MARIAN_SPEC]), device=device, tokenizer=tokenizer)
+    return StubMTTranslator(
+        ModelRegistry(specs=[MARIAN_SPEC]), device=device, tokenizer=tokenizer, batch_size=batch_size
+    )
 
 
 def _nllb_translator() -> StubMTTranslator:
@@ -183,3 +185,25 @@ def test_translate_blocks_ignores_sentinel_model_limit() -> None:
     mt.tokenizer.model_max_length = int(1e30)
 
     assert mt.translate_blocks(["alpha"], "en", "de") == ["alpha::translated"]
+
+
+def test_translate_blocks_splits_into_bounded_batches_preserving_order() -> None:
+    mt = _marian_translator(batch_size=2)
+
+    output = mt.translate_blocks(["a", "b", "c", "d", "e"], "en", "de")
+
+    assert output == ["a::translated", "b::translated", "c::translated", "d::translated", "e::translated"]
+    assert [call.texts for call in mt.tokenizer.encode_calls] == [["a", "b"], ["c", "d"], ["e"]]
+
+
+def test_translate_blocks_uses_single_batch_when_within_limit() -> None:
+    mt = _marian_translator(batch_size=8)
+
+    mt.translate_blocks(["a", "b"], "en", "de")
+
+    assert [call.texts for call in mt.tokenizer.encode_calls] == [["a", "b"]]
+
+
+def test_translator_rejects_non_positive_batch_size() -> None:
+    with pytest.raises(ValueError, match="batch_size must be positive"):
+        _marian_translator(batch_size=0)

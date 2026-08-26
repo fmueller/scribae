@@ -11,6 +11,10 @@ from .model_registry import ModelRegistry, RouteStep
 # transformers uses a sentinel (~1e30) for tokenizers without a real maximum length.
 _NO_LENGTH_LIMIT = int(1e29)
 
+# The removed pipeline defaulted to batch_size=1, so memory never scaled with document size.
+# Batching is faster, but a whole document in one padded tensor can exhaust memory, so bound it.
+DEFAULT_BATCH_SIZE = 8
+
 
 class BatchEncoding(Protocol):
     """The batch of tensors a tokenizer produces: a mapping that can move to a device."""
@@ -59,9 +63,17 @@ class MTTranslator:
     instance therefore serves one sequence of route steps at a time.
     """
 
-    def __init__(self, registry: ModelRegistry, device: str | None = None) -> None:
+    def __init__(
+        self,
+        registry: ModelRegistry,
+        device: str | None = None,
+        batch_size: int = DEFAULT_BATCH_SIZE,
+    ) -> None:
+        if batch_size <= 0:
+            raise ValueError("batch_size must be positive")
         self.registry = registry
         self.device = device
+        self.batch_size = batch_size
         self._translators: dict[str, LoadedTranslator] = {}
 
     def translate_block(
@@ -157,6 +169,12 @@ class MTTranslator:
             )
 
     def _run_step_batch(self, step: RouteStep, texts: list[str]) -> list[str]:
+        translations: list[str] = []
+        for start in range(0, len(texts), self.batch_size):
+            translations.extend(self._translate_batch(step, texts[start : start + self.batch_size]))
+        return translations
+
+    def _translate_batch(self, step: RouteStep, texts: list[str]) -> list[str]:
         loaded = self._translator_for(step.model.model_id)
         tokenizer, model = loaded.tokenizer, loaded.model
         try:
