@@ -94,6 +94,28 @@ Tests mirror module names: `tests/unit/main_test.py` targets `src/scribae/main.p
 
 Shared tokenizer/model test doubles live in `tests/mt_fakes.py`. The conftest uses them to stub `MTTranslator._load_translator` and avoid downloading large translation models during tests. Use `pytest.mark.asyncio` for async tests. Because that stub means the unit suite never loads a real model, `tests/integration/mt_real_model_test.py` covers the real loading and generation path; it is skipped unless `SCRIBAE_REAL_MODEL_TESTS=1` is set, since it downloads model weights.
 
+## Tracked Work (Taskrail)
+
+Planning and task state live in the repo, managed by the `taskrail` CLI.
+
+- `specs/` — versioned specs. `specs/v0.2.0.md` is the shipped baseline; `specs/v0.3.0.md` is active.
+- `planning/STATE.md` — current focus, blockers, next action.
+- `planning/tasks/` — one file per task, each linked to a spec heading via `spec_ref`.
+
+```bash
+taskrail status                 # current snapshot (read-only)
+taskrail next                   # deterministic next eligible task
+taskrail start <task-id>        # mark active
+taskrail verify <task-id>       # write verification artifacts
+taskrail complete <task-id>     # mark implemented
+taskrail block <task-id>        # record a blocker
+taskrail validate               # check structure and state
+taskrail coverage               # spec coverage / orphan / drift signals
+```
+
+Do not hand-edit `planning/STATE.md`; go through the CLI. New work needs a task
+(`taskrail task new --title ... --area <spec-anchor>`) so no change bypasses a spec heading.
+
 ## Commits
 
 Follow Conventional Commits: `fix:`, `feat:`, `chore:`, etc. Keep subjects under 72 characters.
