@@ -14,6 +14,17 @@ repos:
         language: system
         types: [ python ]
         pass_filenames: false
+      - id: commit-message-policy-test
+        name: commit message policy tests
+        entry: bash scripts/check-commit-msg-test.sh
+        language: system
+        files: ^scripts/check-commit-msg(-test)?\.sh$
+        pass_filenames: false
+      - id: commit-message-policy
+        name: commit message policy
+        entry: bash scripts/check-commit-msg.sh
+        language: system
+        stages: [ commit-msg ]
 
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v5.0.0

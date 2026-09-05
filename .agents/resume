@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Scribae has no backing services or per-orb authentication to restore.
+printf 'scribae orb is ready\n'

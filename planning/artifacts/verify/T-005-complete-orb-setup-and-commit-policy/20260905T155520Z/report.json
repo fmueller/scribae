@@ -1,0 +1,14 @@
+{
+  "artifacts": [
+    "planning/artifacts/verify/T-005-complete-orb-setup-and-commit-policy/20260905T155520Z/plan.md",
+    "planning/artifacts/verify/T-005-complete-orb-setup-and-commit-policy/20260905T155520Z/report.md"
+  ],
+  "details": "Setup passed twice (warm 0.22s); forced Taskrail v0.4.0 reinstall passed checksum validation; resume completed in 0.00s; commit policy shell tests and installed hook accept/reject checks passed; taskrail validate, ruff, mypy, and pytest passed (231 passed, 2 skipped).",
+  "generated_at": "2026-09-05T15:55:20Z",
+  "result": "pass",
+  "schema_version": 1,
+  "spec_ref": "specs/v0.3.0.md#development-workflow",
+  "summary": "Orb lifecycle and pre-commit message policy validated",
+  "task_id": "T-005-complete-orb-setup-and-commit-policy",
+  "task_title": "Complete orb setup and commit policy"
+}

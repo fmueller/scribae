@@ -1,0 +1,63 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+taskrail_version="v0.4.0"
+
+run_step() {
+    local description="$1"
+    shift
+    printf 'scribae setup: %s\n' "$description"
+    time "$@"
+}
+
+install_taskrail() {
+    local architecture archive checksum download_dir
+
+    case "$(uname -m)" in
+        x86_64)
+            architecture="amd64"
+            checksum="d165c0e9499be6815e3f78686500ce7762b7b2ad08aff394ffa9a44b721bea70"
+            ;;
+        aarch64 | arm64)
+            architecture="arm64"
+            checksum="8f7462bf74023946359877bb3efc00461575cf8486391ac3d034e53adf0867a7"
+            ;;
+        *)
+            printf 'unsupported architecture for Taskrail: %s\n' "$(uname -m)" >&2
+            return 1
+            ;;
+    esac
+
+    archive="taskrail_${taskrail_version#v}_linux_${architecture}.tar.gz"
+    download_dir="$(mktemp -d)"
+    curl -fsSL "https://github.com/tessariq/taskrail/releases/download/${taskrail_version}/${archive}" \
+        -o "$download_dir/$archive"
+    printf '%s  %s\n' "$checksum" "$download_dir/$archive" | sha256sum --check --status
+    tar -xzf "$download_dir/$archive" -C "$download_dir" taskrail
+    install -Dm755 "$download_dir/taskrail" "$HOME/.local/bin/taskrail"
+    rm -rf "$download_dir"
+}
+
+cd "$repo_root"
+mkdir -p "$HOME/.local/bin"
+
+if ! command -v curl >/dev/null 2>&1; then
+    run_step "installing curl" sudo apt-get update
+    run_step "installing curl" sudo apt-get install -y ca-certificates curl
+fi
+
+if ! command -v taskrail >/dev/null 2>&1 || [[ "$(taskrail --version)" != "$taskrail_version" ]]; then
+    run_step "installing Taskrail $taskrail_version" install_taskrail
+fi
+
+run_step "installing locked Python dependencies" uv sync --locked --all-extras --dev
+
+# A global hooksPath prevents pre-commit from installing repository-owned hooks.
+git config --local --unset-all core.hooksPath 2>/dev/null || true
+run_step "installing pre-commit and commit-msg hooks" \
+    env GIT_CONFIG_GLOBAL=/dev/null uv run pre-commit install --install-hooks \
+        --hook-type pre-commit --hook-type commit-msg
+git config --local core.hooksPath .git/hooks
+
+printf 'scribae setup complete\n'

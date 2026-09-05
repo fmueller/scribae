@@ -215,3 +215,6 @@ __marimo__/
 /write*.md
 /ideas*.json
 /feedback*.json
+
+# Amp orb runtime state
+/.amp/portals/
