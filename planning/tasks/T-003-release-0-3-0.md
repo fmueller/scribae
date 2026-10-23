@@ -16,7 +16,7 @@ updated_at: "2026-08-27T22:50:27Z"
 
 `CHANGELOG.md` stops at `0.2.0 - 2026-02-18` and has no Unreleased section, while several
 behavior changes have landed since: the seq2seq translation backend, truncation and batch-size
-fixes, the string-title front matter requirement, and dependency floors (typer 0.27, mypy 2.3,
+fixes, validated note-title fallbacks, and dependency floors (typer 0.27, mypy 2.3,
 python-frontmatter 1.3). `pyproject.toml` still reads `0.2.0`.
 
 ## Acceptance

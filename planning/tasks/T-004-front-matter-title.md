@@ -1,30 +1,45 @@
 ---
 id: T-004-front-matter-title
 title: Regression-test note front matter title validation
-status: todo
+status: completed
 priority: medium
 spec_ref: specs/v0.3.0.md#note-front-matter-validation
 dependencies: []
-updated_at: "2026-08-27T22:50:27Z"
+updated_at: "2026-10-24T07:34:30Z"
 ---
 
 # T-004-front-matter-title Regression-test note front matter title validation
 
 ## Description
 
-`3deb0db` made a note title required to be a string in front matter. `io_utils.py` should reject
-non-string titles (ints, lists, nulls) with a clear error instead of letting them reach prompt
-construction. Confirm the error surface is the module's own exception type with an `exit_code`,
-consistent with the other error hierarchies.
+Reconcile the title regression coverage introduced in `3deb0db`. That fix ensures the
+resolved `NoteDetails.title` is a string; it does not require a front matter title or reject
+non-string metadata. `load_note` selects the first non-blank string from `title`, then `name`,
+otherwise deriving a title from the filename stem. The earlier task misread the commit's
+subject and proposed a new error surface contrary to its implementation and tests.
 
 ## Acceptance
 
-- Tests in `tests/unit/io_utils_test.py` cover a missing title, a non-string title, and a valid one.
-- The failure raises the module's error type with a message naming the offending file.
+- Tests in `tests/unit/io_utils_test.py::TestLoadNoteTitle` assert that a valid title is
+  retained, an absent title uses `name` when available, and missing, numeric, or blank titles
+  fall back to a filename-derived title when no valid name is present.
+- Preserve fallback behavior; do not introduce a title-validation exception or `exit_code`.
 - `uv run pytest`, `uv run mypy`, and `uv run ruff check` pass.
 
 ## Verification Notes
 
-- TODO: record verification evidence paths.
+- [Verification report](../artifacts/verify/T-004-front-matter-title/20261024T073430Z/report.md)
+  records the existing-test evidence and passing checks for this reconciliation.
 
 ## Implementation Notes
+
+- Reconciliation only: no note-loading behavior change.
+- Existing coverage: `test_title_comes_from_frontmatter`,
+  `test_name_is_used_when_title_is_absent`,
+  `test_filename_is_used_when_frontmatter_has_no_title`,
+  `test_non_string_title_falls_back_to_the_filename`, and
+  `test_blank_title_falls_back_to_the_filename` in `TestLoadNoteTitle`.
+- The existing non-string regression case uses a numeric title; it is not an exhaustive
+  YAML-type matrix. The implementation skips any candidate that is not a non-blank string.
+- 2026-10-24T07:34:30Z: verification pass
+- 2026-10-24T07:34:30Z: Reconciled stale rejection requirement against original fallback implementation and passing title tests; no note-loading behavior change.

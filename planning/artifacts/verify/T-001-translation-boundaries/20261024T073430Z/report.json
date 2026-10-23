@@ -1,0 +1,14 @@
+{
+  "artifacts": [
+    "planning/artifacts/verify/T-001-translation-boundaries/20261024T073430Z/plan.md",
+    "planning/artifacts/verify/T-001-translation-boundaries/20261024T073430Z/report.md"
+  ],
+  "details": "History: 6b80a05 deliberately rejects over-model-limit input rather than splitting or truncating; cd006f4 bounds mini-batches. Reviewed current mt.py, mt_test.py and shared mt_fakes.py. Existing tests cover no truncation, rejection above the limit, acceptance at the limit, sentinel limits, bounded batches and output order. uv run pytest tests/unit/io_utils_test.py tests/unit/mt_test.py -q: 43 passed. uv run pytest -q: 231 passed, 2 skipped (opt-in real-model tests; T-002 remains open). uv run mypy: no issues in 66 source files. uv run ruff check: all checks passed. taskrail validate: state valid. Documentation-only reconciliation; no production or test changes. Main-agent scope, simplification and prose/source review performed as requested; no delegated independent review.",
+  "generated_at": "2026-10-24T07:34:30Z",
+  "result": "pass",
+  "schema_version": 1,
+  "spec_ref": "specs/v0.3.0.md#translation-input-safety",
+  "summary": "Existing MT tests satisfy the reconciled input-safety contract",
+  "task_id": "T-001-translation-boundaries",
+  "task_title": "Cover translation batch and truncation boundaries"
+}
